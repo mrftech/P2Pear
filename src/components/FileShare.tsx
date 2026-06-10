@@ -127,7 +127,8 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
       let finalBlob = file.blob;
       if (file.fileHandle) {
         const handle = file.fileHandle as FileSystemFileHandle;
-        finalBlob = await handle.getFile();
+        const rawFile = await handle.getFile();
+        finalBlob = new Blob([rawFile], { type: file.type });
       }
       
       if (!finalBlob) throw new Error("No file data found.");
@@ -139,7 +140,7 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 60000); // 60 seconds to prevent truncation
     } catch (e) {
       console.error("Download failed:", e);
       alert("Failed to download file. It may be corrupted or unavailable.");
@@ -196,7 +197,7 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setTimeout(() => URL.revokeObjectURL(url), 60000); // 60 seconds to prevent truncation
         setIsZipping(false);
       });
     } catch (e) {
