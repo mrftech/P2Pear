@@ -15,6 +15,7 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
     [fileId: string]: { name: string, bytes: number, total: number, type: 'upload' | 'download' }
   }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/immutability
@@ -50,7 +51,7 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
 
 
 
-  const handleFileSelect = async (selectedFiles: FileList | null) => {
+  const handleFileSelect = async (selectedFiles: FileList | File[] | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
     for (let i = 0; i < selectedFiles.length; i++) {
       try {
@@ -70,10 +71,47 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    handleFileSelect(e.dataTransfer.files);
+    
+    if (e.dataTransfer.items) {
+      const files: File[] = [];
+      const promises: Promise<void>[] = [];
+      
+      const traverseFileTree = (item: any, path: string) => {
+        return new Promise<void>((resolve) => {
+          if (item.isFile) {
+            item.file((file: File) => {
+              files.push(file);
+              resolve();
+            });
+          } else if (item.isDirectory) {
+            const dirReader = item.createReader();
+            dirReader.readEntries((entries: any[]) => {
+              const subPromises = entries.map((entry: any) => traverseFileTree(entry, path + item.name + "/"));
+              Promise.all(subPromises).then(() => resolve());
+            });
+          } else {
+            resolve();
+          }
+        });
+      };
+
+      for (let i = 0; i < e.dataTransfer.items.length; i++) {
+        const item = e.dataTransfer.items[i].webkitGetAsEntry();
+        if (item) {
+          promises.push(traverseFileTree(item, ""));
+        }
+      }
+      
+      await Promise.all(promises);
+      if (files.length > 0) {
+        handleFileSelect(files);
+      }
+    } else {
+      handleFileSelect(e.dataTransfer.files);
+    }
   };
 
   const formatSize = (bytes: number) => {
@@ -118,17 +156,32 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
       >
         <div className="flex-col items-center gap-2">
           <UploadCloud size={32} className="text-zinc-400" />
-          <p className="text-zinc-300">Drag and drop files here, or click to pick files</p>
+          <p className="text-zinc-300">Drag and drop files here</p>
+          <div className="flex-row mt-2" style={{ gap: '1rem' }}>
+            <button className="btn btn-outline" onClick={() => fileInputRef.current?.click()}>
+              Select Files
+            </button>
+            <button className="btn btn-outline" onClick={() => folderInputRef.current?.click()}>
+              Select Folder
+            </button>
+          </div>
         </div>
         <input 
           type="file" 
           multiple 
           className="hidden" 
           ref={fileInputRef}
+          onChange={(e) => handleFileSelect(e.target.files)}
+        />
+        <input 
+          type="file" 
+          {...{ webkitdirectory: "", directory: "" } as any}
+          multiple 
+          className="hidden" 
+          ref={folderInputRef}
           onChange={(e) => handleFileSelect(e.target.files)}
         />
       </div>
