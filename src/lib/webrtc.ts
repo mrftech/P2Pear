@@ -171,9 +171,17 @@ export class WebRTCManager {
             };
             
             // Try to initialize OPFS (Origin Private File System) for zero-RAM file assembly
-            // OPFS has been disabled due to browser-specific data corruption bugs.
-            // We now force the use of the 100% stable RAM fallback.
-            console.log(`[WebRTC] Using stable RAM backend for ${data.name}`);
+            try {
+              const root = await navigator.storage.getDirectory();
+              const handle = await root.getFileHandle(`swarmgrid-${data.id}`, { create: true });
+              const writable = await handle.createWritable();
+              this.activeReceives[data.id].fileHandle = handle;
+              this.activeReceives[data.id].writable = writable;
+              console.log(`[WebRTC] OPFS stream created for ${data.name}`);
+            } catch (e) {
+              console.warn("[WebRTC] OPFS not supported or failed, falling back to RAM buffer", e);
+            }
+
           } else if (data.type === 'file-ack') {
             if (this.ackListeners[data.id]) {
               this.ackListeners[data.id](data.index);
