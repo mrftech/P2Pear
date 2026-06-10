@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WebRTCManager } from '../lib/webrtc';
 import { getFiles, type SharedFile } from '../lib/db';
-import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2, Image as ImageIcon, Film, FileText, FileAudio, Archive, FileDown } from 'lucide-react';
+import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2, Image as ImageIcon, Film, FileText, FileAudio, Archive, FileDown, Loader2 } from 'lucide-react';
 import * as fflate from 'fflate';
 
 interface FileShareProps {
@@ -12,6 +12,7 @@ interface FileShareProps {
 export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger }) => {
   const [files, setFiles] = useState<SharedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
   const [progresses, setProgresses] = useState<{
     [fileId: string]: { name: string, bytes: number, total: number, type: 'upload' | 'download' }
   }>({});
@@ -146,44 +147,62 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
   };
 
   const handleDownloadAll = async () => {
+    if (isZipping) return;
     const receivedFiles = files.filter(f => f.sender === 'peer');
     if (receivedFiles.length === 0) return;
     
-    // Build zip file system
-    const zipData: Record<string, Uint8Array> = {};
-    for (const f of receivedFiles) {
-      let blob = f.blob;
-      if (f.fileHandle) {
-        const handle = f.fileHandle as FileSystemFileHandle;
-        blob = await handle.getFile();
-      }
-      if (blob) {
-        const arrayBuffer = await blob.arrayBuffer();
-        // Resolve filename collisions
-        let filename = f.name;
-        let counter = 1;
-        while (zipData[filename]) {
-          const parts = f.name.split('.');
-          const ext = parts.length > 1 ? '.' + parts.pop() : '';
-          const base = parts.join('.');
-          filename = `${base} (${counter})${ext}`;
-          counter++;
-        }
-        zipData[filename] = new Uint8Array(arrayBuffer);
-      }
-    }
+    setIsZipping(true);
+    // Yield to event loop to allow React to render the loading state
+    await new Promise(r => setTimeout(r, 50));
     
-    // Generate ZIP synchronously for simplicity, or we can use zipSync
-    const zipped = fflate.zipSync(zipData);
-    const blob = new Blob([zipped], { type: 'application/zip' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `P2Pear_Files_${new Date().getTime()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try {
+      // Build zip file system
+      const zipData: Record<string, Uint8Array> = {};
+      for (const f of receivedFiles) {
+        let blob = f.blob;
+        if (f.fileHandle) {
+          const handle = f.fileHandle as FileSystemFileHandle;
+          blob = await handle.getFile();
+        }
+        if (blob) {
+          const arrayBuffer = await blob.arrayBuffer();
+          // Resolve filename collisions
+          let filename = f.name;
+          let counter = 1;
+          while (zipData[filename]) {
+            const parts = f.name.split('.');
+            const ext = parts.length > 1 ? '.' + parts.pop() : '';
+            const base = parts.join('.');
+            filename = `${base} (${counter})${ext}`;
+            counter++;
+          }
+          zipData[filename] = new Uint8Array(arrayBuffer);
+        }
+      }
+      
+      // Generate ZIP asynchronously to prevent complete UI lockup
+      fflate.zip(zipData, (err, zipped) => {
+        if (err) {
+          console.error(err);
+          setIsZipping(false);
+          alert("Failed to compress files.");
+          return;
+        }
+        const blob = new Blob([zipped], { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `P2Pear_Files_${new Date().getTime()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setIsZipping(false);
+      });
+    } catch (e) {
+      console.error(e);
+      setIsZipping(false);
+    }
   };
 
   const getFileIcon = (file: SharedFile | null, mimeType?: string) => {
@@ -248,8 +267,23 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         {files.filter(f => f.sender === 'peer').length > 1 && (
           <div className="flex-row justify-between mb-md" style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
             <span className="text-zinc-300 font-medium">Received {files.filter(f => f.sender === 'peer').length} files</span>
-            <button className="btn btn-primary" onClick={handleDownloadAll} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-              <FileDown size={16} /> Download All as ZIP
+            <button 
+              className="btn btn-primary" 
+              onClick={handleDownloadAll} 
+              disabled={isZipping}
+              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              {isZipping ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Zipping...
+                </>
+              ) : (
+                <>
+                  <FileDown size={16} />
+                  Download All as ZIP
+                </>
+              )}
             </button>
           </div>
         )}
