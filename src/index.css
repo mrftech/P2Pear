@@ -66,6 +66,7 @@ h1, h2, h3 { font-weight: 700; }
 .text-left { text-align: left; }
 .mono-text { font-family: monospace; font-size: 0.875rem; }
 .mb-md { margin-bottom: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
 .mt-20 { margin-top: 5rem; }
 .hidden { display: none; }
 .color-success { color: var(--color-success); }
@@ -326,8 +327,15 @@ h1, h2, h3 { font-weight: 700; }
   background: rgba(0, 240, 255, 0.05);
 }
 
-.drop-icon {
-  color: var(--accent-cyan);
+.upload-icon-wrapper {
+  background: rgba(0, 240, 255, 0.1);
+  padding: 1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+  margin-bottom: 0.5rem;
 }
 
 .file-list {

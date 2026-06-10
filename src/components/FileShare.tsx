@@ -157,15 +157,20 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <div className="flex-col items-center gap-2">
-          <UploadCloud size={32} className="text-zinc-400" />
-          <p className="text-zinc-300">Drag and drop files here</p>
-          <div className="flex-row mt-2" style={{ gap: '1rem' }}>
-            <button className="btn btn-outline" onClick={() => fileInputRef.current?.click()}>
-              Select Files
+        <div className="flex-col" style={{ alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <div className="upload-icon-wrapper">
+            <UploadCloud size={40} style={{ color: 'var(--accent-cyan)' }} />
+          </div>
+          <h3 style={{ margin: '0.5rem 0 0 0', fontWeight: 600, fontSize: '1.2rem' }}>Drag & drop files or folders here</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+            or choose a selection method below
+          </p>
+          <div className="flex-row mt-3" style={{ gap: '1rem', justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()}>
+              Browse Files
             </button>
             <button className="btn btn-outline" onClick={() => folderInputRef.current?.click()}>
-              Select Folder
+              Browse Folders
             </button>
           </div>
         </div>
