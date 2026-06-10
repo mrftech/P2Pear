@@ -124,11 +124,31 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
 
   const handleDownload = async (file: SharedFile) => {
     try {
+      if (file.fileHandle && 'showSaveFilePicker' in window) {
+        try {
+          const handle = file.fileHandle as FileSystemFileHandle;
+          const opfsFile = await handle.getFile();
+          
+          // Use modern File System Access API to stream directly to disk (Zero corruption, unlimited size)
+          const saveHandle = await (window as any).showSaveFilePicker({
+            suggestedName: file.name
+          });
+          const writable = await saveHandle.createWritable();
+          await opfsFile.stream().pipeTo(writable);
+          return; // Success!
+        } catch (err: any) {
+          if (err.name === 'AbortError') return; // User cancelled
+          console.warn("showSaveFilePicker failed, falling back to Blob URL", err);
+        }
+      }
+
       let finalBlob = file.blob;
       if (file.fileHandle) {
         const handle = file.fileHandle as FileSystemFileHandle;
-        const rawFile = await handle.getFile();
-        finalBlob = new Blob([rawFile], { type: file.type });
+        const opfsFile = await handle.getFile();
+        // Bypass Chromium OPFS Blob URL corruption by forcing it into RAM
+        const buffer = await opfsFile.arrayBuffer();
+        finalBlob = new Blob([buffer], { type: file.type || 'application/octet-stream' });
       }
       
       if (!finalBlob) throw new Error("No file data found.");
