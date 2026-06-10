@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { WebRTCManager, type ConnectionStatus } from '../lib/webrtc';
 import { clearWorkspace } from '../lib/db';
@@ -223,6 +224,17 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
             </li>
           </ul>
         </div>
+      )}
+
+      {mode === 'idle' && (
+        <footer style={{ marginTop: '3rem', textAlign: 'center', opacity: 0.6, fontSize: '0.85rem' }}>
+          <p style={{ margin: '0 0 0.5rem 0' }}>© 2026 P2Pear</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+            <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
+            <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+            <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+          </div>
+        </footer>
       )}
     </div>
   );

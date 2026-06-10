@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, Link } from 'react-router-dom';
 import { WebRTCManager, type ConnectionStatus } from './lib/webrtc';
 import { ConnectionManager } from './components/ConnectionManager';
 import { Chat } from './components/Chat';
 import { FileShare } from './components/FileShare';
+import { LegalView } from './views/LegalView';
 import { clearWorkspace, wipeOnNewSession } from './lib/db';
 import { ShieldAlert } from 'lucide-react';
+import './index.css';
 import './index.css';
 
 function App() {
@@ -55,13 +58,13 @@ function App() {
     }
   };
 
-  return (
+  const MainApp = () => (
     <div className="app-layout">
       <header className="app-header">
-        <a href="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
           <img src="/favicon.svg" alt="P2Pear" style={{ width: 24, height: 24 }} />
           <span className="logo-text">P2Pear</span>
-        </a>
+        </Link>
         {status === 'connected' && (
           <button className="btn btn-danger" onClick={handleDestroy}>
             <ShieldAlert size={18} /> Delete everything & exit
@@ -84,6 +87,15 @@ function App() {
         )}
       </main>
     </div>
+  );
+
+  return (
+    <Routes>
+      <Route path="/" element={<MainApp />} />
+      <Route path="/about" element={<LegalView page="about" />} />
+      <Route path="/privacy" element={<LegalView page="privacy" />} />
+      <Route path="/terms" element={<LegalView page="terms" />} />
+    </Routes>
   );
 }
 
