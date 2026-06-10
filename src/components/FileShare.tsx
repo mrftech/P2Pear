@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WebRTCManager } from '../lib/webrtc';
 import { getFiles, type SharedFile } from '../lib/db';
-import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2 } from 'lucide-react';
+import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2, Image as ImageIcon, Film, FileText, FileAudio, Archive, FileDown } from 'lucide-react';
+import * as fflate from 'fflate';
 
 interface FileShareProps {
   rtcManager: WebRTCManager;
@@ -144,6 +145,58 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
     }
   };
 
+  const handleDownloadAll = async () => {
+    const receivedFiles = files.filter(f => f.sender === 'peer');
+    if (receivedFiles.length === 0) return;
+    
+    // Build zip file system
+    const zipData: Record<string, Uint8Array> = {};
+    for (const f of receivedFiles) {
+      let blob = f.blob;
+      if (f.fileHandle) {
+        const handle = f.fileHandle as FileSystemFileHandle;
+        blob = await handle.getFile();
+      }
+      if (blob) {
+        const arrayBuffer = await blob.arrayBuffer();
+        // Resolve filename collisions
+        let filename = f.name;
+        let counter = 1;
+        while (zipData[filename]) {
+          const parts = f.name.split('.');
+          const ext = parts.length > 1 ? '.' + parts.pop() : '';
+          const base = parts.join('.');
+          filename = `${base} (${counter})${ext}`;
+          counter++;
+        }
+        zipData[filename] = new Uint8Array(arrayBuffer);
+      }
+    }
+    
+    // Generate ZIP synchronously for simplicity, or we can use zipSync
+    const zipped = fflate.zipSync(zipData);
+    const blob = new Blob([zipped], { type: 'application/zip' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `P2Pear_Files_${new Date().getTime()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const getFileIcon = (file: SharedFile | null, mimeType?: string) => {
+    const type = file ? file.type : mimeType;
+    if (!type) return <FileIcon size={24} className="text-cyan-400" />;
+    if (type.startsWith('image/')) return <ImageIcon size={24} className="text-cyan-400" />;
+    if (type.startsWith('video/')) return <Film size={24} className="text-cyan-400" />;
+    if (type.startsWith('audio/')) return <FileAudio size={24} className="text-cyan-400" />;
+    if (type.includes('pdf')) return <FileText size={24} className="text-cyan-400" />;
+    if (type.includes('zip') || type.includes('archive') || type.includes('compressed')) return <Archive size={24} className="text-cyan-400" />;
+    return <FileIcon size={24} className="text-cyan-400" />;
+  };
+
   return (
     <div className="fileshare-container glass-panel">
       <div className="panel-header">
@@ -192,6 +245,14 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
       </div>
 
       <div className="file-list">
+        {files.filter(f => f.sender === 'peer').length > 1 && (
+          <div className="flex-row justify-between mb-md" style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
+            <span className="text-zinc-300 font-medium">Received {files.filter(f => f.sender === 'peer').length} files</span>
+            <button className="btn btn-primary" onClick={handleDownloadAll} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+              <FileDown size={16} /> Download All as ZIP
+            </button>
+          </div>
+        )}
         {Object.entries(progresses).map(([fileId, p]) => (
           <div key={`prog-${fileId}`} className="file-item" style={{ position: 'relative', overflow: 'hidden' }}>
             {/* Very subtle background fill for progress */}
@@ -242,7 +303,7 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         {files.map((f) => (
           <div key={f.id} className="file-item">
             <div className="file-info">
-              <FileIcon size={24} className="text-cyan-400" />
+              {getFileIcon(f)}
               <div className="file-details">
                 <span className="file-name">{f.name}</span>
                 <span className="file-meta">{formatSize(f.size)} • {f.sender === 'me' ? 'Sent' : 'Received'}</span>
