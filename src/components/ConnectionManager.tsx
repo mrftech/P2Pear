@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { WebRTCManager, type ConnectionStatus } from '../lib/webrtc';
 import { clearWorkspace } from '../lib/db';
@@ -16,7 +15,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
   const [answerStr, setAnswerStr] = useState('');
   const [inputStr, setInputStr] = useState('');
   const [mode, setMode] = useState<'idle' | 'creating' | 'joining' | 'connecting'>('idle');
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<'create' | 'join' | 'connect' | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedString, setCopiedString] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -27,7 +26,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
       if (rtcManager && window.location.hash.length > 50 && mode === 'idle') {
         const hash = window.location.hash.substring(1);
         try {
-          setLoading(true);
+          setLoadingAction('join');
           await clearWorkspace(); // Wipe old data!
           const answer = await rtcManager.handleOffer(hash);
           setAnswerStr(answer);
@@ -36,7 +35,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
         } catch (e) {
           console.error('Failed to parse URL hash offer', e);
         } finally {
-          setLoading(false);
+          setLoadingAction(null);
         }
       }
     };
@@ -45,7 +44,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
   const handleCreateGrid = async () => {
     if (!rtcManager) return;
-    setLoading(true);
+    setLoadingAction('create');
     await clearWorkspace(); // Wipe old data!
     try {
       const offer = await rtcManager.generateOffer();
@@ -54,13 +53,13 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   const handleJoinGrid = async () => {
     if (!rtcManager || !inputStr) return;
-    setLoading(true);
+    setLoadingAction(mode === 'creating' ? 'connect' : 'join');
 
     // Auto-extract the payload if user accidentally pasted the full URL
     let parsedInput = inputStr.trim();
@@ -82,7 +81,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
       console.error(e);
       alert("That link didn't work. Please check it and try again.");
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -105,18 +104,20 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
     <div className="connection-container">
       <div className="glass-panel connection-panel">
         <h1 className="title-gradient">P2Pear</h1>
-        <p className="subtitle">Share files and connect with anyone. Fast, safe, and simple.</p>
+        <p className="subtitle">Send large files instantly between any devices. 100% free, secure, and serverless.</p>
 
         {status === 'error' && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
-            Connection failed. Please try again.
+          <div className="alert-danger fade-in">
+            <AlertCircle size={20} />
+            Connection failed. Please check the link and try again.
           </div>
         )}
 
         {mode === 'idle' && (
           <div className="flex-col">
-            <button className="btn btn-primary w-full" onClick={handleCreateGrid} disabled={loading}>
-              <Plus size={24} /> Create a link
+            <button className="btn btn-primary w-full" onClick={handleCreateGrid} disabled={!!loadingAction}>
+              {loadingAction === 'create' ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
+              <span>{loadingAction === 'create' ? 'Creating link...' : 'Create a link'}</span>
             </button>
             <div className="divider">OR</div>
             <div className="flex-row">
@@ -126,8 +127,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
                 value={inputStr}
                 onChange={e => setInputStr(e.target.value)}
               />
-              <button className="btn" onClick={() => { setMode('joining'); handleJoinGrid(); }} disabled={!inputStr || loading}>
-                <LinkIcon size={20} /> Join
+              <button className="btn" onClick={handleJoinGrid} disabled={!inputStr || !!loadingAction}>
+                {loadingAction === 'join' ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />} 
+                <span>{loadingAction === 'join' ? 'Joining...' : 'Join'}</span>
               </button>
             </div>
           </div>
@@ -161,8 +163,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
                 value={inputStr}
                 onChange={e => setInputStr(e.target.value)}
               />
-              <button className="btn btn-primary" onClick={handleJoinGrid} disabled={!inputStr || loading}>
-                Connect
+              <button className="btn btn-primary" onClick={handleJoinGrid} disabled={!inputStr || !!loadingAction}>
+                {loadingAction === 'connect' ? <Loader2 size={20} className="animate-spin" /> : null}
+                <span>{loadingAction === 'connect' ? 'Connecting...' : 'Connect'}</span>
               </button>
             </div>
           </div>
@@ -207,35 +210,53 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
       </div>
 
       {mode === 'idle' && (
-        <div className="trust-footer fade-in">
-          <h2 style={{ color: 'var(--text-secondary)', fontWeight: 500, fontSize: '1.1rem', margin: '0 0 1rem 0' }}>Why P2Pear is 100% safe</h2>
-          <ul className="trust-list">
-            <li className="trust-item">
-              <CheckCircle2 size={18} className="trust-icon" /> 
-              <span><strong>No servers:</strong> Your files go straight from your device to your friend's device. They never touch a cloud.</span>
-            </li>
-            <li className="trust-item">
-              <CheckCircle2 size={18} className="trust-icon" /> 
-              <span><strong>Completely private:</strong> Everything is locked with a secret key. Nobody else can see your chats or files.</span>
-            </li>
-            <li className="trust-item">
-              <CheckCircle2 size={18} className="trust-icon" /> 
-              <span><strong>No traces left behind:</strong> When you close this page, all your messages and files are deleted forever.</span>
-            </li>
-          </ul>
+        <div className="faq-container fade-in">
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "How does P2Pear send large files for free?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "P2Pear uses WebRTC to create a direct peer-to-peer connection between your devices. Because your files never touch a cloud server, there are no bandwidth limits or costs."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is there a file size limit?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Since there are no servers involved, you can send unlimited file sizes—from a 10MB photo to a 100GB video folder."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is my data secure?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Every file transfer is secured with end-to-end encryption. Only the receiving device has the key to decrypt your files."
+                }
+              }
+            ]
+          })}} />
+          <h2 className="faq-title">Frequently Asked Questions</h2>
+          <details className="faq-item">
+            <summary>How does P2Pear send large files for free?</summary>
+            <p>P2Pear uses WebRTC to create a direct peer-to-peer connection between your devices. Because your files never touch a cloud server, there are no bandwidth limits or costs.</p>
+          </details>
+          <details className="faq-item">
+            <summary>Is there a file size limit?</summary>
+            <p>No. Since there are no servers involved, you can send unlimited file sizes—from a 10MB photo to a 100GB video folder.</p>
+          </details>
+          <details className="faq-item">
+            <summary>Is my data secure?</summary>
+            <p>Yes. Every file transfer is secured with end-to-end encryption. Only the receiving device has the key to decrypt your files.</p>
+          </details>
         </div>
       )}
 
-      {mode === 'idle' && (
-        <footer style={{ marginTop: '3rem', textAlign: 'center', opacity: 0.6, fontSize: '0.85rem' }}>
-          <p style={{ margin: '0 0 0.5rem 0' }}>© 2026 P2Pear</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-            <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
-            <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
-            <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
-          </div>
-        </footer>
-      )}
     </div>
   );
 };

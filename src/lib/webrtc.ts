@@ -61,20 +61,31 @@ export class WebRTCManager {
     [fileId: string]: { 
       meta: { name: string; type: string; size: number; ivBase: Uint8Array },
       fileHandle?: FileSystemFileHandle,
-      writable?: any,
+      opfsEnabled?: boolean,
+      opfsReady: Promise<boolean> | null,
       chunksQueue: { index: number, data: Uint8Array }[],
       ramFallback: Uint8Array[],
       nextIndex: number,
       receivedBytes: number,
       isWriting: boolean,
       isDone: boolean,
+      pendingDecrypts: number,
       lastProgressTime: number
     } 
   } = {};
 
+  private opfsWorker?: Worker;
+
   constructor(onStatusChange: ConnectionCallback, onNewData: MessageCallback) {
     this.onConnectionStatusChange = onStatusChange;
     this.onNewData = onNewData;
+    
+    try {
+      this.opfsWorker = new Worker(new URL('./opfs.worker.ts', import.meta.url), { type: 'module' });
+      console.log('[WebRTC] OPFS Worker initialized.');
+    } catch (e) {
+      console.warn('[WebRTC] Failed to initialize OPFS Worker. Will fallback to RAM.', e);
+    }
     
     // Using public STUN servers for NAT traversal
     this.pc = new RTCPeerConnection({
@@ -154,33 +165,49 @@ export class WebRTCManager {
             const ivBase = new Uint8Array(ivStr.length);
             for(let i=0; i<ivStr.length; i++) ivBase[i] = ivStr.charCodeAt(i);
 
-            this.activeReceives[data.id] = {
+            const receiveId = data.id;
+
+            // OPFS init via Web Worker to prevent Main Thread crashes in Firefox/Safari
+            let resolveOpfs: (val: boolean) => void = () => {};
+            const opfsReady = new Promise<boolean>((resolve) => { resolveOpfs = resolve; });
+
+            if (this.opfsWorker) {
+              const workerListener = (e: MessageEvent) => {
+                if (e.data.fileId === receiveId) {
+                  if (e.data.type === 'init-success') {
+                    console.log(`[WebRTC] OPFS stream created via Worker for ${data.name}`);
+                    this.opfsWorker?.removeEventListener('message', workerListener);
+                    resolveOpfs(true);
+                  } else if (e.data.type === 'init-error') {
+                    console.warn(`[WebRTC] OPFS Worker init failed, falling back to RAM: ${e.data.error}`);
+                    this.opfsWorker?.removeEventListener('message', workerListener);
+                    resolveOpfs(false);
+                  }
+                }
+              };
+              this.opfsWorker.addEventListener('message', workerListener);
+              this.opfsWorker.postMessage({ type: 'init', fileId: receiveId, name: data.name });
+            } else {
+              resolveOpfs(false);
+            }
+
+            this.activeReceives[receiveId] = {
               meta: {
                 name: data.name,
                 type: data.fileType,
                 size: data.size,
                 ivBase
               },
+              opfsReady,
               chunksQueue: [],
               ramFallback: [],
               nextIndex: 0,
               receivedBytes: 0,
               isWriting: false,
               isDone: false,
+              pendingDecrypts: 0,
               lastProgressTime: Date.now()
             };
-            
-            // Try to initialize OPFS (Origin Private File System) for zero-RAM file assembly
-            try {
-              const root = await navigator.storage.getDirectory();
-              const handle = await root.getFileHandle(`swarmgrid-${data.id}`, { create: true });
-              const writable = await handle.createWritable();
-              this.activeReceives[data.id].fileHandle = handle;
-              this.activeReceives[data.id].writable = writable;
-              console.log(`[WebRTC] OPFS stream created for ${data.name}`);
-            } catch (e) {
-              console.warn("[WebRTC] OPFS not supported or failed, falling back to RAM buffer", e);
-            }
 
           } else if (data.type === 'file-ack') {
             if (this.ackListeners[data.id]) {
@@ -211,14 +238,16 @@ export class WebRTCManager {
             const ivView = new DataView(chunkIv.buffer);
             ivView.setUint32(8, ivView.getUint32(8) ^ chunkIndex);
 
+            receiveState.pendingDecrypts++;
             try {
               const decryptedBuffer = await decryptChunk(this.sharedKey, encryptedChunk, chunkIv);
               const decryptedChunk = new Uint8Array(decryptedBuffer);
-
               receiveState.chunksQueue.push({ index: chunkIndex, data: decryptedChunk });
-              this.processWriteQueue(fileId);
             } catch (e) {
               console.error("[WebRTC] Failed to decrypt chunk", e);
+            } finally {
+              receiveState.pendingDecrypts--;
+              this.processWriteQueue(fileId);
             }
           }
         }
@@ -233,20 +262,23 @@ export class WebRTCManager {
     if (!state || state.isWriting) return;
     state.isWriting = true;
 
+    // Wait for OPFS init to finish before the first write.
+    if (state.opfsReady) {
+      state.opfsEnabled = await state.opfsReady;
+      state.opfsReady = null;
+    }
+
     try {
       state.chunksQueue.sort((a,b) => a.index - b.index);
 
       while (state.chunksQueue.length > 0 && state.chunksQueue[0].index === state.nextIndex) {
         const chunk = state.chunksQueue.shift()!;
         
-        if (state.writable) {
-          try {
-            await state.writable.write(chunk.data);
-          } catch (writeErr) {
-            console.warn("[WebRTC] OPFS write failed, falling back to RAM", writeErr);
-            state.writable = undefined;
-            state.ramFallback.push(chunk.data);
-          }
+        if (state.opfsEnabled && this.opfsWorker) {
+          // Offload to worker thread. Transferable object (chunk.data.buffer) could be used 
+          // for zero-copy, but it would detach the buffer if used elsewhere. Since 
+          // chunk.data is not used again, we could transfer it, but structured clone is fast enough for 16KB.
+          this.opfsWorker.postMessage({ type: 'write', fileId, chunk: chunk.data });
         } else {
           state.ramFallback.push(chunk.data);
         }
@@ -272,7 +304,7 @@ export class WebRTCManager {
     } finally {
       state.isWriting = false;
       
-      if (state.isDone && state.chunksQueue.length === 0) {
+      if (state.isDone && state.chunksQueue.length === 0 && state.pendingDecrypts === 0) {
         this.finishFile(fileId);
       }
     }
@@ -286,10 +318,27 @@ export class WebRTCManager {
       let finalBlob: Blob | undefined;
       let handle: FileSystemFileHandle | undefined;
       
-      if (state.writable) {
-        await state.writable.close();
-        handle = state.fileHandle;
-        console.log(`[WebRTC] File saved to OPFS successfully`);
+      if (state.opfsEnabled && this.opfsWorker) {
+        // Wait for worker to close the file
+        await new Promise<void>((resolve) => {
+          const closeListener = (e: MessageEvent) => {
+            if (e.data.fileId === fileId && (e.data.type === 'close-success' || e.data.type === 'close-error')) {
+              this.opfsWorker?.removeEventListener('message', closeListener);
+              resolve();
+            }
+          };
+          this.opfsWorker?.addEventListener('message', closeListener);
+          this.opfsWorker?.postMessage({ type: 'close', fileId });
+        });
+
+        // Worker closed it. Now Main Thread can get the read handle to save in IndexedDB
+        try {
+          const root = await navigator.storage.getDirectory();
+          handle = await root.getFileHandle(`swarmgrid-${fileId}`);
+          console.log(`[WebRTC] File saved to OPFS successfully`);
+        } catch (opfsErr) {
+          console.error(`[WebRTC] Could not get file handle after worker close:`, opfsErr);
+        }
       } else {
         finalBlob = new Blob(state.ramFallback as any[], { type: state.meta.type });
         console.log(`[WebRTC] File assembled in RAM successfully`);

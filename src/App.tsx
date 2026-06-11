@@ -5,6 +5,7 @@ import { ConnectionManager } from './components/ConnectionManager';
 import { Chat } from './components/Chat';
 import { FileShare } from './components/FileShare';
 import { LegalView } from './views/LegalView';
+import { SeoLandingView } from './views/SeoLandingView';
 import { clearWorkspace, wipeOnNewSession } from './lib/db';
 import { ShieldAlert } from 'lucide-react';
 import './index.css';
@@ -86,6 +87,22 @@ function App() {
           </div>
         )}
       </main>
+
+      {status !== 'connected' && (
+        <footer style={{ marginTop: 'auto', padding: '2rem', textAlign: 'center', color: '#71717a', fontSize: '0.875rem' }}>
+          <p style={{ margin: '0 0 1rem 0' }}>© 2026 P2Pear</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <Link to="/snapdrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>Snapdrop Alternative</Link>
+            <Link to="/wetransfer-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>WeTransfer Alternative</Link>
+            <Link to="/sharedrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>ShareDrop Alternative</Link>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
+            <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+            <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+          </div>
+        </footer>
+      )}
     </div>
   );
 
@@ -95,6 +112,9 @@ function App() {
       <Route path="/about" element={<LegalView page="about" />} />
       <Route path="/privacy" element={<LegalView page="privacy" />} />
       <Route path="/terms" element={<LegalView page="terms" />} />
+      <Route path="/snapdrop-alternative" element={<SeoLandingView competitor="Snapdrop" />} />
+      <Route path="/wetransfer-alternative" element={<SeoLandingView competitor="WeTransfer" />} />
+      <Route path="/sharedrop-alternative" element={<SeoLandingView competitor="ShareDrop" />} />
     </Routes>
   );
 }

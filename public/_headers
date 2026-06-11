@@ -1,0 +1,11 @@
+# HTML pages must always be revalidated so the browser loads
+# the latest hashed JS/CSS bundles after each deploy.
+/
+  Cache-Control: no-cache, must-revalidate
+/index.html
+  Cache-Control: no-cache, must-revalidate
+
+# Vite-hashed assets (content hash in filename) are safe to
+# cache indefinitely — the filename changes on every rebuild.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
