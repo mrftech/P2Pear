@@ -1,22 +1,22 @@
 :root {
-  --bg-primary: #0a0a0c;
+  --bg-primary: #09090b;
   --bg-secondary: rgba(20, 20, 25, 0.6);
   --bg-glass: rgba(255, 255, 255, 0.03);
   --bg-glass-hover: rgba(255, 255, 255, 0.08);
-  --border-glass: rgba(255, 255, 255, 0.05);
+  --border-glass: rgba(255, 255, 255, 0.1);
   
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   
-  --accent-cyan: #00f0ff;
-  --accent-purple: #8a2be2;
+  --accent-cyan: #06b6d4;
+  --accent-purple: #8b5cf6;
   --accent-pink: #ff00ff;
   --color-danger: #ff3366;
-  --color-success: #00ffaa;
+  --color-success: #10b981;
   
   --gradient-glow: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   
-  --shadow-neon: 0 0 20px rgba(0, 240, 255, 0.2);
+  --shadow-neon: 0 0 20px rgba(6, 182, 212, 0.2);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 24px;
@@ -35,8 +35,8 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   background-image: 
-    radial-gradient(circle at 15% 50%, rgba(0, 240, 255, 0.05), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(138, 43, 226, 0.05), transparent 25%);
+    radial-gradient(circle at 15% 50%, rgba(6, 182, 212, 0.05), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05), transparent 25%);
 }
 
 #root {
@@ -46,7 +46,10 @@ body {
 }
 
 /* Typography */
-h1, h2, h3 { font-weight: 700; }
+h1, h2, h3 { 
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700; 
+}
 .title-gradient {
   background: var(--gradient-glow);
   -webkit-background-clip: text;
@@ -82,10 +85,10 @@ h1, h2, h3 { font-weight: 700; }
 
 /* Components */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
   position: relative;
