@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/favicon.svg" alt="P2Pear Logo" width="120" height="120" />
+  <img src="public/icon-512x512.png" alt="P2Pear Logo" width="120" height="120" />
 
   # P2Pear
 
