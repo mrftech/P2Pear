@@ -261,6 +261,13 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
       </div>
 
       <div className="file-list">
+        {(files.length > 0 || Object.keys(progresses).length > 0) && (
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '0.5rem' }}>
+            <span>🛡️</span>
+            <span>Make sure you trust the sender before opening files.</span>
+          </div>
+        )}
+        
         {Object.entries(progresses).map(([fileId, p]) => (
           <div key={`prog-${fileId}`} className="file-item" style={{ position: 'relative', overflow: 'hidden' }}>
             {/* Very subtle background fill for progress */}

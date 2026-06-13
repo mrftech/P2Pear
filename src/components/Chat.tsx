@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WebRTCManager } from '../lib/webrtc';
 import { getMessages, type ChatMessage } from '../lib/db';
-import { Send, MessageSquare } from 'lucide-react';
+import { Send, MessageSquare, ShieldCheck } from 'lucide-react';
 
 interface ChatProps {
   rtcManager: WebRTCManager;
@@ -40,9 +40,17 @@ export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger }) => {
 
   return (
     <div className="chat-container glass-panel">
-      <div className="panel-header">
-        <MessageSquare size={20} className="text-primary-400" />
-        <h2>Chat</h2>
+      <div className="panel-header" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <MessageSquare size={20} className="text-primary-400" />
+          <h2>Chat</h2>
+        </div>
+        {rtcManager.roomId && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <ShieldCheck size={14} />
+            <span style={{ fontWeight: 600, letterSpacing: '0.05em' }}>{rtcManager.roomId}</span>
+          </div>
+        )}
       </div>
       
       <div className="chat-messages">

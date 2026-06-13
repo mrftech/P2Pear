@@ -1,46 +1,7 @@
-import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload, encryptChunk, decryptChunk } from './crypto';
+import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload, encryptChunk, decryptChunk, deriveKeyFromPassword } from './crypto';
 import { addMessage, addFile, type SharedFile } from './db';
 import { joinRoom, type Room } from 'trystero';
-// Compression Utility for shorter Base64 Strings
-async function compressData(jsonStr: string): Promise<string> {
-  if (typeof CompressionStream === 'undefined') {
-    return 'RAW:' + btoa(jsonStr);
-  }
-  try {
-    const stream = new Blob([jsonStr]).stream().pipeThrough(new CompressionStream('deflate'));
-    const buffer = await new Response(stream).arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binaryStr = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binaryStr += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binaryStr);
-  } catch (e) {
-    return 'RAW:' + btoa(jsonStr);
-  }
-}
-
-async function decompressData(b64Str: string): Promise<string> {
-  if (b64Str.startsWith('RAW:')) {
-    return atob(b64Str.substring(4));
-  }
-  try {
-    const binaryStr = atob(b64Str);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'));
-    return await new Response(stream).text();
-  } catch (e) {
-    // Fallback to uncompressed string for backwards compatibility or failed decompression
-    try {
-      const decoded = atob(b64Str);
-      if (decoded.trim().startsWith('{')) return decoded;
-    } catch {}
-    throw e;
-  }
-}
+// We removed CompressionStream to fix critical crashes on iOS/iPadOS Safari 15/16.
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 export type ConnectionCallback = (status: ConnectionStatus, error?: string) => void;
 export type MessageCallback = () => void;
@@ -55,6 +16,13 @@ export class WebRTCManager {
   private ecdhKeyPair: CryptoKeyPair | null = null;
   private sharedKey: CryptoKey | null = null;
   private ackListeners: { [fileId: string]: (ackIndex: number) => void } = {};
+  public onIceCandidatesBatched?: (candidates: any[]) => void;
+  private candidateBuffer: any[] = [];
+  private candidateTimer: any = null;
+  private idleTimeoutTimer: any = null;
+  private IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+  public disconnectReason?: string;
+  public roomId?: string;
 
   // File receiving state
   private activeReceives: { 
@@ -90,7 +58,7 @@ export class WebRTCManager {
     // Using public STUN servers for NAT traversal
     this.pc = new RTCPeerConnection({
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun.relay.metered.ca:80' },
         { 
@@ -104,6 +72,21 @@ export class WebRTCManager {
         }
       ]
     });
+
+    this.pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        this.candidateBuffer.push(e.candidate.toJSON());
+        if (!this.candidateTimer) {
+          this.candidateTimer = setTimeout(() => {
+            if (this.onIceCandidatesBatched && this.candidateBuffer.length > 0) {
+              this.onIceCandidatesBatched([...this.candidateBuffer]);
+              this.candidateBuffer = [];
+            }
+            this.candidateTimer = null;
+          }, 100); // 100ms aggressive batch window for instant cross-device connection
+        }
+      }
+    };
 
     this.pc.oniceconnectionstatechange = () => {
       console.log('[WebRTC] ICE Connection State:', this.pc.iceConnectionState);
@@ -135,6 +118,7 @@ export class WebRTCManager {
     const handleOpen = () => {
       console.log('[DataChannel] Opened!');
       this.onConnectionStatusChange('connected');
+      this.resetIdleTimer();
     };
 
     if (this.dataChannel.readyState === 'open') {
@@ -145,10 +129,11 @@ export class WebRTCManager {
 
     this.dataChannel.onclose = () => {
       console.log('[DataChannel] Closed!');
-      this.onConnectionStatusChange('error', 'Connection closed');
+      this.onConnectionStatusChange('error', this.disconnectReason || 'Connection closed');
     };
 
     this.dataChannel.onmessage = async (event) => {
+      this.resetIdleTimer();
       if (!this.sharedKey) return;
       
       try {
@@ -368,7 +353,7 @@ export class WebRTCManager {
     }
   }
 
-  public async generateOffer(): Promise<string> {
+  public async generateOffer(): Promise<any> {
     console.log('[WebRTC] Generating Offer...');
     this.ecdhKeyPair = await generateKeyPair();
     const publicKeyBase64 = await exportPublicKey(this.ecdhKeyPair.publicKey);
@@ -381,54 +366,17 @@ export class WebRTCManager {
     console.log('[WebRTC] Created Offer SDP');
     await this.pc.setLocalDescription(offer);
 
-    const candidates: RTCIceCandidateInit[] = [];
-
-    // Wait for ICE gathering
-    console.log('[WebRTC] Waiting for ICE candidates...');
-    await new Promise<void>((resolve) => {
-      let isResolved = false;
-      const doResolve = () => {
-        if (isResolved) return;
-        isResolved = true;
-        this.pc.removeEventListener('icecandidate', checkState);
-        this.pc.removeEventListener('icegatheringstatechange', checkState);
-        resolve();
-      };
-
-      const checkState = (e?: any) => {
-        if (e && e.candidate) {
-          candidates.push(e.candidate.toJSON());
-          // Smart early exit: TURN candidates guarantee NAT traversal
-          if (e.candidate.type === 'relay') {
-            doResolve();
-          }
-        }
-        if (this.pc.iceGatheringState === 'complete' || (e && e.candidate === null)) {
-          doResolve();
-        }
-      };
-      
-      this.pc.addEventListener('icecandidate', checkState);
-      this.pc.addEventListener('icegatheringstatechange', checkState);
-      
-      // Increased failsafe timeout to 2500ms for Firefox's slower STUN/TURN engine
-      setTimeout(doResolve, 2500);
-    });
-
     const payload = {
       sdp: this.pc.localDescription,
-      candidates: candidates,
       publicKey: publicKeyBase64
     };
-    console.log('[WebRTC] Offer generated with ICE gathering state:', this.pc.iceGatheringState);
 
-    return await compressData(JSON.stringify(payload));
+    return payload;
   }
 
-  public async handleOffer(offerStrBase64: string): Promise<string> {
+  public async handleOffer(payload: any): Promise<any> {
     try {
       console.log('[WebRTC] Handling remote Offer...');
-      const payload = JSON.parse(await decompressData(offerStrBase64));
       
       this.ecdhKeyPair = await generateKeyPair();
       const myPublicKeyBase64 = await exportPublicKey(this.ecdhKeyPair.publicKey);
@@ -439,65 +387,27 @@ export class WebRTCManager {
 
       await this.pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
       console.log('[WebRTC] Remote description set');
-      
-      if (payload.candidates) {
-        for (const candidate of payload.candidates) {
-          try { await this.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
-        }
-      }
 
       const answer = await this.pc.createAnswer();
       await this.pc.setLocalDescription(answer);
-      console.log('[WebRTC] Created Answer SDP, waiting for ICE...');
-
-      const candidates: RTCIceCandidateInit[] = [];
-
-      // Wait for ICE gathering
-      await new Promise<void>((resolve) => {
-        let isResolved = false;
-        const doResolve = () => {
-          if (isResolved) return;
-          isResolved = true;
-          this.pc.removeEventListener('icecandidate', checkState);
-          this.pc.removeEventListener('icegatheringstatechange', checkState);
-          resolve();
-        };
-
-        const checkState = (e?: any) => {
-          if (e && e.candidate) {
-            candidates.push(e.candidate.toJSON());
-            if (e.candidate.type === 'relay') {
-              doResolve();
-            }
-          }
-          if (this.pc.iceGatheringState === 'complete' || (e && e.candidate === null)) {
-            doResolve();
-          }
-        };
-        
-        this.pc.addEventListener('icecandidate', checkState);
-        this.pc.addEventListener('icegatheringstatechange', checkState);
-        setTimeout(doResolve, 2500);
-      });
+      console.log('[WebRTC] Created Answer SDP');
 
       const answerPayload = {
         sdp: this.pc.localDescription,
-        candidates: candidates,
         publicKey: myPublicKeyBase64
       };
 
-      return await compressData(JSON.stringify(answerPayload));
+      return answerPayload;
     } catch (e) {
       console.error(e);
-      this.onConnectionStatusChange('error', 'Invalid Offer string.');
+      this.onConnectionStatusChange('error', 'Invalid Offer payload.');
       throw e;
     }
   }
 
-  public async handleAnswer(answerStrBase64: string) {
+  public async handleAnswer(payload: any) {
     try {
       console.log('[WebRTC] Handling remote Answer...');
-      const payload = JSON.parse(await decompressData(answerStrBase64));
       const peerPublicKey = await importPublicKey(payload.publicKey);
       
       if (!this.ecdhKeyPair) throw new Error("Local key pair not found.");
@@ -510,18 +420,21 @@ export class WebRTCManager {
       console.log('[WebRTC] ECDH Shared Key derived');
       
       await this.pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      
-      if (payload.candidates) {
-        for (const candidate of payload.candidates) {
-          try { await this.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
-        }
-      }
-      
-      console.log('[WebRTC] Remote description and candidates set successfully. Connecting...');
+      console.log('[WebRTC] Remote description set successfully. Connecting...');
     } catch (e) {
       console.error('[WebRTC] Error in handleAnswer:', e);
       this.onConnectionStatusChange('error', 'Invalid Answer string.');
       throw e;
+    }
+  }
+
+  public async addIceCandidates(candidates: any[]) {
+    for (const candidate of candidates) {
+      try {
+        await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.warn('[WebRTC] Error adding ICE candidate:', e);
+      }
     }
   }
 
@@ -534,6 +447,7 @@ export class WebRTCManager {
     const msg = JSON.stringify({ type: 'chat', ciphertext, iv });
     
     this.dataChannel.send(msg);
+    this.resetIdleTimer();
     await addMessage({ sender: 'me', text, timestamp: Date.now() });
     this.onNewData();
   }
@@ -597,6 +511,9 @@ export class WebRTCManager {
         });
       }
       this.dataChannel!.send(data);
+      
+      // Reset idle timer occasionally during file transfer to prevent timeout on large files
+      if (Math.random() < 0.01) this.resetIdleTimer();
     };
 
     while (true) {
@@ -672,51 +589,109 @@ export class WebRTCManager {
   }
 
   public disconnect() {
+    if (this.idleTimeoutTimer) clearTimeout(this.idleTimeoutTimer);
     this.dataChannel?.close();
     this.pc.close();
+  }
+
+  private resetIdleTimer() {
+    if (this.idleTimeoutTimer) clearTimeout(this.idleTimeoutTimer);
+    this.idleTimeoutTimer = setTimeout(() => {
+      console.log('[WebRTC] Connection idle for 30 minutes. Disconnecting...');
+      this.disconnectReason = 'Connection closed due to 30 minutes of inactivity.';
+      this.disconnect();
+    }, this.IDLE_TIMEOUT_MS);
   }
 }
 
 export class SignalingManager {
   private room: Room | null = null;
   private rtcManager: WebRTCManager;
+  private targetPeerId: string | null = null;
+  private signalingKey: CryptoKey | null = null;
 
   constructor(rtcManager: WebRTCManager) {
     this.rtcManager = rtcManager;
   }
 
-  public join(roomId: string, isCreator: boolean) {
+  public async join(roomId: string, isCreator: boolean) {
     console.log(`[Signaling] Joining room ${roomId}...`);
+    this.rtcManager.roomId = roomId;
+    this.signalingKey = await deriveKeyFromPassword(roomId);
     this.room = joinRoom({ appId: 'p2pear-v1' }, roomId);
     
     // Create a Trystero action to exchange SDP strings
     const sdpAction = this.room.makeAction('sdp') as any;
+    const iceAction = this.room.makeAction('ice') as any;
 
-    sdpAction.onMessage = async (data: any, { peerId }: { peerId: string }) => {
+    this.rtcManager.onIceCandidatesBatched = async (candidates) => {
+      if (!this.signalingKey) return;
       try {
-        if (data.type === 'offer' && !isCreator) {
-          console.log(`[Signaling] Received Offer from ${peerId}`);
-          const answer = await this.rtcManager.handleOffer(data.sdp);
-          sdpAction.send({ type: 'answer', sdp: answer }, { target: peerId });
-          // We can leave the tracker room once signaling is done!
-          setTimeout(() => this.leave(), 2000); 
-        } else if (data.type === 'answer' && isCreator) {
-          console.log(`[Signaling] Received Answer from ${peerId}`);
-          await this.rtcManager.handleAnswer(data.sdp);
-          // We can leave the tracker room once signaling is done!
-          setTimeout(() => this.leave(), 2000);
+        const payload = JSON.stringify({ candidates });
+        const { ciphertext, iv } = await encryptPayload(this.signalingKey, payload);
+        const msg = { encrypted: ciphertext, iv };
+        
+        if (this.targetPeerId) {
+          iceAction.send(msg, { target: this.targetPeerId });
+        } else {
+          iceAction.send(msg);
         }
       } catch (e) {
-        console.error('[Signaling] Error handling SDP message:', e);
+        console.error('[Signaling] Failed to encrypt ICE candidates', e);
+      }
+    };
+
+    iceAction.onMessage = async (raw: any) => {
+      if (!this.signalingKey || !raw.encrypted || !raw.iv) return;
+      try {
+        const decryptedJson = await decryptPayload(this.signalingKey, raw.encrypted, raw.iv);
+        const data = JSON.parse(decryptedJson);
+        if (data.candidates) {
+          await this.rtcManager.addIceCandidates(data.candidates);
+        }
+      } catch (e) {
+        // Silently ignore failed decryption (could be an attacker or wrong code)
+      }
+    };
+
+    sdpAction.onMessage = async (raw: any, { peerId }: { peerId: string }) => {
+      if (!this.signalingKey || !raw.encrypted || !raw.iv) return;
+      this.targetPeerId = peerId;
+      try {
+        const decryptedJson = await decryptPayload(this.signalingKey, raw.encrypted, raw.iv);
+        const data = JSON.parse(decryptedJson);
+
+        if (data.type === 'offer' && !isCreator) {
+          console.log(`[Signaling] Received valid Offer from ${peerId}`);
+          const answer = await this.rtcManager.handleOffer(data.sdp);
+          
+          const answerPayload = JSON.stringify({ type: 'answer', sdp: answer });
+          const { ciphertext, iv } = await encryptPayload(this.signalingKey, answerPayload);
+          sdpAction.send({ encrypted: ciphertext, iv }, { target: peerId });
+          
+          // Leave the tracker room after 8 seconds to allow trickle ICE to finish
+          setTimeout(() => this.leave(), 8000); 
+        } else if (data.type === 'answer' && isCreator) {
+          console.log(`[Signaling] Received valid Answer from ${peerId}`);
+          await this.rtcManager.handleAnswer(data.sdp);
+          // Leave the tracker room after 8 seconds to allow trickle ICE to finish
+          setTimeout(() => this.leave(), 8000);
+        }
+      } catch (e) {
+        // Silently ignore
       }
     };
 
     (this.room as any).onPeerJoin = async (peerId: string) => {
       console.log(`[Signaling] Peer ${peerId} joined tracker room`);
-      if (isCreator) {
+      if (isCreator && this.signalingKey) {
+        this.targetPeerId = peerId;
         try {
           const offer = await this.rtcManager.generateOffer();
-          sdpAction.send({ type: 'offer', sdp: offer }, { target: peerId });
+          const offerPayload = JSON.stringify({ type: 'offer', sdp: offer });
+          const { ciphertext, iv } = await encryptPayload(this.signalingKey, offerPayload);
+          
+          sdpAction.send({ encrypted: ciphertext, iv }, { target: peerId });
         } catch (e) {
           console.error('[Signaling] Error sending offer:', e);
         }

@@ -90,7 +90,9 @@ export async function clearWorkspace() {
   }
 }
 
-// ---------- Multi-tab session coordination (Web Locks API) ----------
+// ---------- Multi-tab session coordination ----------
+
+export const syncChannel = new BroadcastChannel('p2pear-sync');
 
 const SESSION_LOCK_NAME = 'swarmgrid-active';
 

@@ -40,6 +40,32 @@ export async function deriveSharedKey(privateKey: CryptoKey, publicKey: CryptoKe
   );
 }
 
+export async function deriveKeyFromPassword(password: string): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+  
+  const salt = encoder.encode("p2pear-signaling-salt-2026"); 
+  
+  return await window.crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
 export async function encryptPayload(key: CryptoKey, payload: string): Promise<{ ciphertext: string; iv: string }> {
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
   const encodedPayload = new TextEncoder().encode(payload);

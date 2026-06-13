@@ -1,58 +1,114 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock, AlertCircle, Loader2, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { WebRTCManager, SignalingManager, type ConnectionStatus } from '../lib/webrtc';
-import { clearWorkspace } from '../lib/db';
+import { clearWorkspace, syncChannel } from '../lib/db';
 
 interface ConnectionManagerProps {
   rtcManager: WebRTCManager | null;
   status: ConnectionStatus;
+  errorMessage?: string;
   onConnected: () => void;
 }
 
-export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager, status }) => {
+export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager, status, errorMessage }) => {
   const [roomId, setRoomId] = useState('');
   const [inputStr, setInputStr] = useState('');
-  const [mode, setMode] = useState<'idle' | 'creating' | 'joining'>('idle');
+  const [mode, setMode] = useState<'idle' | 'creating' | 'joining' | 'expired' | 'not_found'>('idle');
+  const [joinPhase, setJoinPhase] = useState<number>(0);
   const [loadingAction, setLoadingAction] = useState<'create' | 'join' | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const sigManagerRef = useRef<SignalingManager | null>(null);
 
+  const takeoverAndClear = async () => {
+    syncChannel.postMessage({ type: 'takeover' });
+    await clearWorkspace();
+  };
+
   // Parse Magic Link from URL
   useEffect(() => {
-    const initFromHash = async () => {
-      if (rtcManager && window.location.hash.length > 1 && mode === 'idle') {
-        const hash = window.location.hash.substring(1);
-        // Ensure it's a short room ID (e.g., 6 chars) and not an old massive payload
-        if (hash.length <= 20) {
+    const initFromUrl = async () => {
+      if (rtcManager && mode === 'idle') {
+        const urlParams = new URLSearchParams(window.location.search);
+        let roomCode = urlParams.get('room');
+        
+        // Backward compatibility with older hash links
+        if (!roomCode && window.location.hash.length > 1) {
+          roomCode = window.location.hash.substring(1);
+        }
+
+        if (roomCode && roomCode.length <= 20) {
           try {
             setLoadingAction('join');
-            await clearWorkspace(); // Wipe old data!
+            await takeoverAndClear(); // Broadcast takeover & wipe old data!
             
             sigManagerRef.current = new SignalingManager(rtcManager);
-            sigManagerRef.current.join(hash.toUpperCase(), false);
+            sigManagerRef.current.join(roomCode.toUpperCase(), false);
             
-            setRoomId(hash.toUpperCase());
+            setRoomId(roomCode.toUpperCase());
             setMode('joining');
             window.history.replaceState(null, '', window.location.pathname);
           } catch (e) {
-            console.error('Failed to join room from hash', e);
+            console.error('Failed to join room from URL', e);
           } finally {
             setLoadingAction(null);
           }
         }
       }
     };
-    initFromHash();
+    initFromUrl();
   }, [rtcManager, mode]);
+
+  // Timeouts for Link Expiration and Progressive Join Feedback
+  useEffect(() => {
+    let timeout: any;
+    let phase1Timer: any;
+    let phase2Timer: any;
+
+    if (mode === 'creating') {
+      timeout = setTimeout(() => {
+        setMode('expired');
+        if (sigManagerRef.current) {
+          sigManagerRef.current.leave();
+        }
+      }, 10 * 60 * 1000); // 10 minutes
+    } else if (mode === 'joining') {
+      setJoinPhase(0);
+      
+      // Update text after 10 seconds (Slow Network / Firewall Traversal)
+      phase1Timer = setTimeout(() => {
+        setJoinPhase(1);
+      }, 10 * 1000);
+
+      // Update text after 25 seconds (Sleeping Device / Background Tab)
+      phase2Timer = setTimeout(() => {
+        setJoinPhase(2);
+      }, 25 * 1000);
+
+      // Final failure at 45 seconds
+      timeout = setTimeout(() => {
+        setMode('not_found');
+        if (sigManagerRef.current) {
+          sigManagerRef.current.leave();
+        }
+      }, 45 * 1000); 
+    }
+    return () => {
+      clearTimeout(timeout);
+      clearTimeout(phase1Timer);
+      clearTimeout(phase2Timer);
+    };
+  }, [mode]);
 
   const handleCreateGrid = async () => {
     if (!rtcManager) return;
     setLoadingAction('create');
-    await clearWorkspace(); // Wipe old data!
+    await takeoverAndClear(); // Broadcast takeover & wipe old data!
     try {
-      // Generate a short 6-character alphanumeric room ID
+      // Generate a short 6-character alphanumeric room ID for optimal early UX.
+      // FUTURE BACKUP: If the app scales to >50k concurrent users, consider switching 
+      // to an 8-character or 3-word dictionary format to prevent math collisions.
       const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       
       sigManagerRef.current = new SignalingManager(rtcManager);
@@ -73,12 +129,15 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
     // Auto-extract the room ID if user accidentally pasted the full URL
     let parsedInput = inputStr.trim();
-    if (parsedInput.includes('#')) {
+    const match = parsedInput.match(/[?&]ROOM=([^&]+)/i);
+    if (match) {
+      parsedInput = match[1];
+    } else if (parsedInput.includes('#')) {
       parsedInput = parsedInput.split('#').pop() || parsedInput;
     }
 
     try {
-      await clearWorkspace(); // Wipe old data!
+      await takeoverAndClear(); // Broadcast takeover & wipe old data!
       sigManagerRef.current = new SignalingManager(rtcManager);
       sigManagerRef.current.join(parsedInput.toUpperCase(), false);
       
@@ -100,18 +159,18 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
   if (status === 'connected') return null;
 
-  const magicLink = roomId ? `${window.location.origin}${window.location.pathname}#${roomId}` : '';
+  const magicLink = roomId ? `${window.location.origin}${window.location.pathname}?room=${roomId}` : '';
 
   return (
     <div className="connection-container">
       <div className="glass-panel connection-panel">
         <h1 className="title-gradient">P2Pear</h1>
-        <p className="subtitle">Send large files instantly between any devices. 100% free, secure, and serverless.</p>
+        <p className="subtitle">Instant, serverless file transfers. 100% free.</p>
 
         {status === 'error' && (
           <div className="alert-danger fade-in">
             <AlertCircle size={20} />
-            Connection failed. Please try creating a new link.
+            {errorMessage || 'Connection failed. Please try creating a new link.'}
           </div>
         )}
 
@@ -121,56 +180,95 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
               {loadingAction === 'create' ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
               <span>{loadingAction === 'create' ? 'Creating room...' : 'Create a room'}</span>
             </button>
-            <div className="divider">OR</div>
-            <div className="flex-row">
+            <div className="divider" style={{ margin: '1.5rem 0' }}>OR</div>
+            <div className="inline-input-group">
               <input
-                className="input flex-1 uppercase"
+                className="input uppercase"
                 placeholder="Paste room code or link..."
                 value={inputStr}
                 onChange={e => setInputStr(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && inputStr && handleJoinGrid()}
               />
               <button className="btn" onClick={handleJoinGrid} disabled={!inputStr || !!loadingAction}>
                 {loadingAction === 'join' ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />} 
-                <span>{loadingAction === 'join' ? 'Joining...' : 'Join'}</span>
+                <span>Join</span>
               </button>
             </div>
           </div>
         )}
 
         {mode === 'creating' && (
-          <div className="flex-col text-left fade-in">
-            <h2>Share this link</h2>
-            <p className="text-sm text-zinc-400 mb-2">Send this link to your friend. The connection will start automatically when they click it.</p>
-            <div className="flex-row mb-md">
-              <input className="input flex-1 mono-text" readOnly value={magicLink} />
-              <button className="btn btn-primary" onClick={() => handleCopy(magicLink)}>
-                {copiedLink ? <CheckCircle2 size={20} /> : 'Copy link'}
-              </button>
-              <button className="btn btn-icon" aria-label="Toggle QR Code" onClick={() => setShowQR(!showQR)}>
-                <QrCode size={20} />
-              </button>
+          <div className="flex-col fade-in" style={{ alignItems: 'center' }}>
+            <h2 style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Share this code</h2>
+            
+            <div className="code-badge-container">
+              <div className="code-badge" onClick={() => handleCopy(magicLink)}>
+                <span>{roomId}</span>
+                {copiedLink ? <CheckCircle2 size={32} className="color-success" /> : <Copy size={32} className="code-badge-icon" />}
+              </div>
+              <div className="copy-hint">{copiedLink ? 'Copied to clipboard!' : 'Click to copy direct link'}</div>
             </div>
+
+            <button className="btn" style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)' }} onClick={() => setShowQR(!showQR)}>
+              <QrCode size={18} />
+              <span>{showQR ? 'Hide QR Code' : 'Show QR Code'}</span>
+            </button>
 
             {showQR && (
-              <div className="qr-container">
-                <QRCodeSVG value={magicLink} size={200} />
+              <div className="qr-container fade-in mt-2 mb-2">
+                <QRCodeSVG value={magicLink} size={180} />
               </div>
             )}
-            
-            <div className="divider">OR USE CODE</div>
-            <div className="text-center">
-              <h1 className="mono-text tracking-widest text-3xl font-bold text-white mt-2 mb-2">{roomId}</h1>
-            </div>
 
-            <p className="status-text pulse text-center mt-6">Waiting for peer to connect...</p>
+            <div className="connecting-ring"></div>
+            <p className="status-text pulse text-center">Waiting for peer to connect...</p>
           </div>
         )}
 
         {mode === 'joining' && (
-          <div className="flex-col text-center fade-in">
+          <div className="flex-col text-center fade-in items-center" style={{ gap: '1rem' }}>
+            <div className="connecting-ring"></div>
             <h2>Joining Room {roomId}</h2>
-            <p className="text-sm text-zinc-400 mt-2">Linking your devices directly to each other via WebRTC...</p>
-            <p className="status-text pulse mt-4">Negotiating connection...</p>
+            <div style={{ color: 'var(--text-secondary)', minHeight: '3rem', display: 'flex', alignItems: 'center', justifyContent: 'center', maxWidth: '320px', margin: '0 auto', transition: 'opacity 0.3s ease' }} className="fade-in" key={joinPhase}>
+              {joinPhase === 0 && "Linking your devices directly via WebRTC..."}
+              {joinPhase === 1 && "Connection taking longer than usual. Negotiating firewalls..."}
+              {joinPhase === 2 && "Still searching... Please ensure the creator's tab is active and open."}
+            </div>
+          </div>
+        )}
+
+        {mode === 'expired' && (
+          <div className="flex-col text-center fade-in items-center" style={{ gap: '1rem' }}>
+            <div className="alert-danger" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1.5rem', borderRadius: '1rem' }}>
+              <AlertCircle size={32} color="#ef4444" />
+              <h2 style={{ color: '#ef4444', fontWeight: 600 }}>Room Code Expired</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                For your security, room codes automatically expire after 10 minutes if no one connects.
+              </p>
+            </div>
+            <button className="btn btn-primary w-full mt-2" onClick={() => setMode('idle')}>
+              Generate New Code
+            </button>
+          </div>
+        )}
+
+        {mode === 'not_found' && (
+          <div className="flex-col text-center fade-in items-center" style={{ gap: '1rem' }}>
+            <div className="alert-danger" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1.5rem', borderRadius: '1rem' }}>
+              <AlertCircle size={32} color="#ef4444" />
+              <h2 style={{ color: '#ef4444', fontWeight: 600 }}>Room Not Found</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                This room link is invalid, expired, or has already been used. P2Pear rooms are single-use and disappear instantly once closed.
+              </p>
+            </div>
+            <button className="btn btn-primary w-full mt-2" onClick={() => {
+              setMode('idle');
+              setInputStr('');
+              // Clean up the URL
+              window.history.replaceState(null, '', window.location.pathname);
+            }}>
+              Return to Home
+            </button>
           </div>
         )}
 

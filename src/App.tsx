@@ -6,7 +6,7 @@ import { Chat } from './components/Chat';
 import { FileShare } from './components/FileShare';
 import { LegalView } from './views/LegalView';
 import { SeoLandingView } from './views/SeoLandingView';
-import { clearWorkspace, wipeOnNewSession } from './lib/db';
+import { clearWorkspace, wipeOnNewSession, syncChannel } from './lib/db';
 import { ShieldAlert } from 'lucide-react';
 import './index.css';
 import './index.css';
@@ -14,6 +14,7 @@ import './index.css';
 function App() {
   const [rtcManager, setRtcManager] = useState<WebRTCManager | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ function App() {
     const manager = new WebRTCManager(
       (newStatus, error) => {
         setStatus(newStatus);
-        if (error) console.error(error);
+        if (error) setErrorMessage(error);
       },
       () => {
         // Trigger UI update when new data arrives
@@ -31,8 +32,17 @@ function App() {
     );
     setRtcManager(manager);
 
+    syncChannel.onmessage = (event) => {
+      if (event.data.type === 'takeover') {
+        console.log('[App] Session taken over by another tab.');
+        manager.disconnectReason = 'Session paused because P2Pear was opened in another tab.';
+        manager.disconnect();
+      }
+    };
+
     return () => {
       manager.disconnect();
+      // syncChannel is a singleton now, do not close it
     };
   }, []);
 
@@ -78,6 +88,7 @@ function App() {
           <ConnectionManager 
             rtcManager={rtcManager} 
             status={status} 
+            errorMessage={errorMessage}
             onConnected={() => setStatus('connected')} 
           />
         ) : (

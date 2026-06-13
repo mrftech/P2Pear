@@ -54,7 +54,7 @@ export const LegalView: React.FC<LegalViewProps> = ({ page }) => {
           </p>
           <h3>Local Storage</h3>
           <p>
-            P2Pear uses your device's local IndexedDB to temporarily buffer large files during transfer. Once you close the application or click "Delete everything & exit", this local data is permanently wiped from your device.
+            P2Pear uses your browser's secure local storage (IndexedDB and OPFS - Origin Private File System) to temporarily buffer large files during transfer directly to your disk. Once you close the application or click "Delete everything & exit", this local data is permanently wiped from your device.
           </p>
         </>
       ),

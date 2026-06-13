@@ -82,26 +82,42 @@ h1, h2, h3 { font-weight: 700; }
 
 /* Components */
 .glass-panel {
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -50%; width: 200%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-cyan), var(--accent-purple), transparent);
+  opacity: 0.6;
+  animation: scanline 6s linear infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(50%); }
 }
 
 .connection-panel {
-  padding: 2rem;
+  padding: 2.5rem 2rem;
   max-width: 500px;
   width: 100%;
-  margin: 5rem auto;
+  margin: 3rem auto;
   text-align: center;
 }
 
 .connection-container {
   height: 100%;
   overflow-y: auto;
-  padding-bottom: 2rem;
+  padding: 1rem;
 }
 
 .btn {
@@ -484,7 +500,7 @@ h1, h2, h3 { font-weight: 700; }
 /* FAQ Accordion */
 .faq-container {
   max-width: 600px;
-  margin: 0 auto 2rem auto;
+  margin: 3rem auto 5rem auto;
   text-align: left;
 }
 
@@ -593,6 +609,109 @@ h1, h2, h3 { font-weight: 700; }
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-.animate-spin {
-  animation: spin 1s linear infinite;
+
+/* Premium UI Additions */
+.inline-input-group {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  padding: 0.35rem;
+  transition: all 0.2s ease;
+  width: 100%;
+  align-items: center;
+}
+.inline-input-group:focus-within {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
+}
+.inline-input-group .input {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0.75rem 1.25rem;
+  flex: 1;
+  font-size: 1rem;
+  color: #fff;
+}
+.inline-input-group .btn {
+  margin-left: 0.25rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+}
+.inline-input-group .btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.code-badge-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 1.5rem 0 1rem 0;
+  position: relative;
+}
+.code-badge {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 2.5rem;
+  font-family: monospace;
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+.code-badge:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.15), inset 0 0 20px rgba(0, 240, 255, 0.05);
+}
+.code-badge:active {
+  transform: translateY(1px) scale(0.98);
+}
+.copy-hint {
+  font-family: var(--font-inter);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--accent-cyan);
+  opacity: 0;
+  position: absolute;
+  top: -25px;
+  transition: all 0.3s ease;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+.code-badge:hover + .copy-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+.code-badge-icon {
+  color: rgba(255, 255, 255, 0.3);
+  transition: color 0.3s ease;
+}
+.code-badge:hover .code-badge-icon {
+  color: var(--accent-cyan);
+}
+
+.connecting-ring {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.05);
+  border-top-color: var(--accent-cyan);
+  border-right-color: var(--accent-purple);
+  animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  margin: 1.5rem auto 1rem auto;
 }

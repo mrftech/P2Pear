@@ -21,8 +21,8 @@ Share unlimited files, chat in real-time, and leave zero traces behind.
 
 ## ✨ Features
 
-- 🔐 **End-to-End Encrypted**: Data travels directly between peers using secure WebRTC data channels.
-- 🚫 **100% Serverless**: No backend, no databases, no central authority. We use manual SDP exchange (copy/pasting connection codes or scanning QR codes) so a signaling server is never required.
+- 🔐 **End-to-End Encrypted**: Data travels directly between peers using secure WebRTC data channels. Signaling is routed through public Nostr relays and protected with military-grade PBKDF2 WebCrypto AES-GCM encryption.
+- 🚫 **100% Serverless Backend**: No centralized backend, no databases, no central authority. We use decentralized relays for signaling, so no proprietary servers are required.
 - ⚡ **Instant Transfer**: Files are streamed directly device-to-device.
 - 🧹 **Zero Traces**: Once you close the app, everything is permanently wiped from device memory.
 
