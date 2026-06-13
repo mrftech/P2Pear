@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.*
 .dev.vars
+
+# Internal documentation
+SIGNALING_CHANGELOG.md
+SIGNALING_ROADMAP.md
