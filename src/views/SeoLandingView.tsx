@@ -78,7 +78,7 @@ export const SeoLandingView: React.FC<SeoLandingViewProps> = ({ competitor }) =>
       
       <header className="app-header">
         <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <img src="/favicon.svg" alt="P2Pear" style={{ width: 24, height: 24 }} />
+          <img src="/favicon.png" alt="P2Pear" style={{ width: 24, height: 24 }} />
           <span className="logo-text">P2Pear</span>
         </Link>
       </header>

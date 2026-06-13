@@ -92,7 +92,7 @@ export const LegalView: React.FC<LegalViewProps> = ({ page }) => {
     <div className="app-layout" style={{ height: 'auto', minHeight: '100vh' }}>
       <header className="app-header">
         <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <img src="/favicon.svg" alt="P2Pear" style={{ width: 24, height: 24 }} />
+          <img src="/favicon.png" alt="P2Pear" style={{ width: 24, height: 24 }} />
           <span className="logo-text">P2Pear</span>
         </Link>
         <Link to="/" className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
