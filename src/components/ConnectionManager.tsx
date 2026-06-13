@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { WebRTCManager, type ConnectionStatus } from '../lib/webrtc';
+import { WebRTCManager, SignalingManager, type ConnectionStatus } from '../lib/webrtc';
 import { clearWorkspace } from '../lib/db';
 
 interface ConnectionManagerProps {
@@ -11,31 +11,36 @@ interface ConnectionManagerProps {
 }
 
 export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager, status }) => {
-  const [offerStr, setOfferStr] = useState('');
-  const [answerStr, setAnswerStr] = useState('');
+  const [roomId, setRoomId] = useState('');
   const [inputStr, setInputStr] = useState('');
-  const [mode, setMode] = useState<'idle' | 'creating' | 'joining' | 'connecting'>('idle');
-  const [loadingAction, setLoadingAction] = useState<'create' | 'join' | 'connect' | null>(null);
+  const [mode, setMode] = useState<'idle' | 'creating' | 'joining'>('idle');
+  const [loadingAction, setLoadingAction] = useState<'create' | 'join' | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedString, setCopiedString] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const sigManagerRef = useRef<SignalingManager | null>(null);
 
   // Parse Magic Link from URL
   useEffect(() => {
     const initFromHash = async () => {
-      if (rtcManager && window.location.hash.length > 50 && mode === 'idle') {
+      if (rtcManager && window.location.hash.length > 1 && mode === 'idle') {
         const hash = window.location.hash.substring(1);
-        try {
-          setLoadingAction('join');
-          await clearWorkspace(); // Wipe old data!
-          const answer = await rtcManager.handleOffer(hash);
-          setAnswerStr(answer);
-          setMode('joining');
-          window.history.replaceState(null, '', window.location.pathname);
-        } catch (e) {
-          console.error('Failed to parse URL hash offer', e);
-        } finally {
-          setLoadingAction(null);
+        // Ensure it's a short room ID (e.g., 6 chars) and not an old massive payload
+        if (hash.length <= 20) {
+          try {
+            setLoadingAction('join');
+            await clearWorkspace(); // Wipe old data!
+            
+            sigManagerRef.current = new SignalingManager(rtcManager);
+            sigManagerRef.current.join(hash.toUpperCase(), false);
+            
+            setRoomId(hash.toUpperCase());
+            setMode('joining');
+            window.history.replaceState(null, '', window.location.pathname);
+          } catch (e) {
+            console.error('Failed to join room from hash', e);
+          } finally {
+            setLoadingAction(null);
+          }
         }
       }
     };
@@ -47,8 +52,13 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
     setLoadingAction('create');
     await clearWorkspace(); // Wipe old data!
     try {
-      const offer = await rtcManager.generateOffer();
-      setOfferStr(offer);
+      // Generate a short 6-character alphanumeric room ID
+      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      sigManagerRef.current = new SignalingManager(rtcManager);
+      sigManagerRef.current.join(newRoomId, true);
+      
+      setRoomId(newRoomId);
       setMode('creating');
     } catch (e) {
       console.error(e);
@@ -59,24 +69,21 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
   const handleJoinGrid = async () => {
     if (!rtcManager || !inputStr) return;
-    setLoadingAction(mode === 'creating' ? 'connect' : 'join');
+    setLoadingAction('join');
 
-    // Auto-extract the payload if user accidentally pasted the full URL
+    // Auto-extract the room ID if user accidentally pasted the full URL
     let parsedInput = inputStr.trim();
     if (parsedInput.includes('#')) {
       parsedInput = parsedInput.split('#').pop() || parsedInput;
     }
 
     try {
-      if (mode === 'creating') {
-        await rtcManager.handleAnswer(parsedInput);
-        setMode('connecting');
-      } else {
-        await clearWorkspace(); // Wipe old data!
-        const answer = await rtcManager.handleOffer(parsedInput);
-        setAnswerStr(answer);
-        setMode('joining');
-      }
+      await clearWorkspace(); // Wipe old data!
+      sigManagerRef.current = new SignalingManager(rtcManager);
+      sigManagerRef.current.join(parsedInput.toUpperCase(), false);
+      
+      setRoomId(parsedInput.toUpperCase());
+      setMode('joining');
     } catch (e) {
       console.error(e);
       alert("That link didn't work. Please check it and try again.");
@@ -85,20 +92,15 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
     }
   };
 
-  const handleCopy = (text: string, isLink: boolean = false) => {
+  const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    if (isLink) {
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    } else {
-      setCopiedString(true);
-      setTimeout(() => setCopiedString(false), 2000);
-    }
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   if (status === 'connected') return null;
 
-  const magicLink = offerStr ? `${window.location.origin}${window.location.pathname}#${offerStr}` : '';
+  const magicLink = roomId ? `${window.location.origin}${window.location.pathname}#${roomId}` : '';
 
   return (
     <div className="connection-container">
@@ -109,23 +111,23 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
         {status === 'error' && (
           <div className="alert-danger fade-in">
             <AlertCircle size={20} />
-            Connection failed. Please check the link and try again.
+            Connection failed. Please try creating a new link.
           </div>
         )}
 
         {mode === 'idle' && (
-          <div className="flex-col">
+          <div className="flex-col fade-in">
             <button className="btn btn-primary w-full" onClick={handleCreateGrid} disabled={!!loadingAction}>
               {loadingAction === 'create' ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
-              <span>{loadingAction === 'create' ? 'Creating link...' : 'Create a link'}</span>
+              <span>{loadingAction === 'create' ? 'Creating room...' : 'Create a room'}</span>
             </button>
             <div className="divider">OR</div>
             <div className="flex-row">
               <input
-                className="input flex-1"
-                placeholder="Paste a link here..."
+                className="input flex-1 uppercase"
+                placeholder="Paste room code or link..."
                 value={inputStr}
-                onChange={e => setInputStr(e.target.value)}
+                onChange={e => setInputStr(e.target.value.toUpperCase())}
               />
               <button className="btn" onClick={handleJoinGrid} disabled={!inputStr || !!loadingAction}>
                 {loadingAction === 'join' ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />} 
@@ -136,12 +138,12 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
         )}
 
         {mode === 'creating' && (
-          <div className="flex-col text-left">
-            <h2>Step 1: Share your link</h2>
-            <p className="text-sm text-zinc-400 mb-2">Send this link to the person you want to connect with.</p>
+          <div className="flex-col text-left fade-in">
+            <h2>Share this link</h2>
+            <p className="text-sm text-zinc-400 mb-2">Send this link to your friend. The connection will start automatically when they click it.</p>
             <div className="flex-row mb-md">
               <input className="input flex-1 mono-text" readOnly value={magicLink} />
-              <button className="btn btn-primary" onClick={() => handleCopy(magicLink, true)}>
+              <button className="btn btn-primary" onClick={() => handleCopy(magicLink)}>
                 {copiedLink ? <CheckCircle2 size={20} /> : 'Copy link'}
               </button>
               <button className="btn btn-icon" aria-label="Toggle QR Code" onClick={() => setShowQR(!showQR)}>
@@ -154,52 +156,21 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
                 <QRCodeSVG value={magicLink} size={200} />
               </div>
             )}
-
-            <h2>Step 2: Paste the code they send back</h2>
-            <div className="flex-row">
-              <input
-                className="input flex-1 mono-text"
-                placeholder="Paste their code here..."
-                value={inputStr}
-                onChange={e => setInputStr(e.target.value)}
-              />
-              <button className="btn btn-primary" onClick={handleJoinGrid} disabled={!inputStr || !!loadingAction}>
-                {loadingAction === 'connect' ? <Loader2 size={20} className="animate-spin" /> : null}
-                <span>{loadingAction === 'connect' ? 'Connecting...' : 'Connect'}</span>
-              </button>
+            
+            <div className="divider">OR USE CODE</div>
+            <div className="text-center">
+              <h1 className="mono-text tracking-widest text-3xl font-bold text-white mt-2 mb-2">{roomId}</h1>
             </div>
+
+            <p className="status-text pulse text-center mt-6">Waiting for peer to connect...</p>
           </div>
         )}
 
-        {mode === 'joining' && answerStr && (
-          <div className="flex-col text-left">
-            <h2>Send this code back</h2>
-            <p className="text-sm text-zinc-400 mb-2">Send this text back to the person who invited you.</p>
-            <div className="flex-row mb-md">
-              <input className="input flex-1 mono-text" readOnly value={answerStr} />
-              <button className="btn btn-primary" onClick={() => handleCopy(answerStr)}>
-                {copiedString ? <CheckCircle2 size={20} /> : 'Copy code'}
-              </button>
-              <button className="btn btn-icon" aria-label="Toggle QR Code" onClick={() => setShowQR(!showQR)}>
-                <QrCode size={20} />
-              </button>
-            </div>
-
-            {showQR && (
-              <div className="qr-container">
-                <QRCodeSVG value={answerStr} size={200} />
-              </div>
-            )}
-
-            <p className="status-text pulse text-center mt-4">Waiting for your friend to connect...</p>
-          </div>
-        )}
-
-        {mode === 'connecting' && (
-          <div className="flex-col text-center">
-            <h2>Connecting...</h2>
-            <p className="text-sm text-zinc-400 mt-2">Linking your devices directly to each other.</p>
-            <p className="status-text pulse mt-4">Please wait...</p>
+        {mode === 'joining' && (
+          <div className="flex-col text-center fade-in">
+            <h2>Joining Room {roomId}</h2>
+            <p className="text-sm text-zinc-400 mt-2">Linking your devices directly to each other via WebRTC...</p>
+            <p className="status-text pulse mt-4">Negotiating connection...</p>
           </div>
         )}
 
@@ -256,7 +227,6 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
           </details>
         </div>
       )}
-
     </div>
   );
 };

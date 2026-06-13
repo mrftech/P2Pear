@@ -1,6 +1,6 @@
 import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload, encryptChunk, decryptChunk } from './crypto';
 import { addMessage, addFile, type SharedFile } from './db';
-
+import { joinRoom, type Room } from 'trystero';
 // Compression Utility for shorter Base64 Strings
 async function compressData(jsonStr: string): Promise<string> {
   if (typeof CompressionStream === 'undefined') {
@@ -674,5 +674,61 @@ export class WebRTCManager {
   public disconnect() {
     this.dataChannel?.close();
     this.pc.close();
+  }
+}
+
+export class SignalingManager {
+  private room: Room | null = null;
+  private rtcManager: WebRTCManager;
+
+  constructor(rtcManager: WebRTCManager) {
+    this.rtcManager = rtcManager;
+  }
+
+  public join(roomId: string, isCreator: boolean) {
+    console.log(`[Signaling] Joining room ${roomId}...`);
+    this.room = joinRoom({ appId: 'p2pear-v1' }, roomId);
+    
+    // Create a Trystero action to exchange SDP strings
+    const sdpAction = this.room.makeAction('sdp') as any;
+
+    sdpAction.onMessage = async (data: any, { peerId }: { peerId: string }) => {
+      try {
+        if (data.type === 'offer' && !isCreator) {
+          console.log(`[Signaling] Received Offer from ${peerId}`);
+          const answer = await this.rtcManager.handleOffer(data.sdp);
+          sdpAction.send({ type: 'answer', sdp: answer }, { target: peerId });
+          // We can leave the tracker room once signaling is done!
+          setTimeout(() => this.leave(), 2000); 
+        } else if (data.type === 'answer' && isCreator) {
+          console.log(`[Signaling] Received Answer from ${peerId}`);
+          await this.rtcManager.handleAnswer(data.sdp);
+          // We can leave the tracker room once signaling is done!
+          setTimeout(() => this.leave(), 2000);
+        }
+      } catch (e) {
+        console.error('[Signaling] Error handling SDP message:', e);
+      }
+    };
+
+    (this.room as any).onPeerJoin = async (peerId: string) => {
+      console.log(`[Signaling] Peer ${peerId} joined tracker room`);
+      if (isCreator) {
+        try {
+          const offer = await this.rtcManager.generateOffer();
+          sdpAction.send({ type: 'offer', sdp: offer }, { target: peerId });
+        } catch (e) {
+          console.error('[Signaling] Error sending offer:', e);
+        }
+      }
+    };
+  }
+
+  public leave() {
+    if (this.room) {
+      console.log('[Signaling] Leaving tracker room');
+      this.room.leave();
+      this.room = null;
+    }
   }
 }
