@@ -10,56 +10,57 @@ export const UseCasesView: React.FC = () => {
   const cases = [
     {
       icon: <Globe size={24} className="accent" />,
-      title: "The Universal AirDrop",
-      description: "Apple's AirDrop is incredible, but it only works within the Apple ecosystem. Android's Quick Share only works between Androids and some PCs. P2Pear fixes this.",
+      title: "Share Between Any Phone or PC",
+      description: "Apple's AirDrop is great, but it only works on Apple devices. What if your friend has an Android and you have an iPhone? P2Pear fixes this.",
       points: [
-        "No cables or apps required.",
-        "Transfer from iPhone to Windows, or Android to Mac.",
-        "Transfers directly over the local network at blazing-fast Wi-Fi speeds."
+        "Send files from an iPhone to a Windows PC, or Android to a Mac.",
+        "No cables to plug in.",
+        "No apps to download or install."
       ]
     },
     {
       icon: <InfinityIcon size={24} className="accent" />,
-      title: "Professional Media Production",
-      description: "Media professionals deal with massive file sizes. A single 4K video shoot or an uncompressed multi-track audio session can easily exceed 50GB.",
+      title: "Send Huge Videos Instantly",
+      description: "Are you trying to send a massive 50GB home video or a giant folder of photos? Most apps stop you at 2GB.",
       points: [
-        "Zero limits: If your hard drive can hold it, P2Pear can send it.",
-        "No 'Double Waiting': Skip the 2-hour upload and 2-hour download cycle. Transfers go directly from Person A to Person B simultaneously."
+        "Zero limits: If your phone or computer has the space, you can send it.",
+        "No double waiting: You don't have to wait hours to upload it to the cloud while your friend waits to download it. It goes straight to them at the same time."
       ]
     },
     {
       icon: <ShieldAlert size={24} className="accent" />,
-      title: "High-Security Corporate & Legal Data",
-      description: "Law firms, medical institutions, and financial analysts routinely handle highly sensitive data subject to strict compliance laws (HIPAA, GDPR, NDAs).",
+      title: "Keep Private Files Safe",
+      description: "Sometimes you need to send highly private documents like tax returns, legal papers, or doctor records.",
       points: [
-        "Zero Server Storage: Files never touch a third-party server. No central database to be hacked or subpoenaed.",
-        "Military-Grade E2EE: Data is encrypted on the sender's device and decrypted only on the receiver's device."
+        "No servers: Your files never sit on a cloud server waiting to be hacked.",
+        "Locked tight: Everything is locked with a secret code on your device, and only your friend's device can unlock it."
       ]
     },
     {
       icon: <Lock size={24} className="accent" />,
-      title: "Journalism & Whistleblowing",
-      description: "For investigative journalists, protecting sources and preventing data interception is a matter of life and death.",
+      title: "Share Without Leaving a Trace",
+      description: "If you want to share something without anyone knowing who you are, most apps require an email or phone number.",
       points: [
-        "Ephemeral Signaling: Once connected, devices drop off the signaling server. The data channel is purely peer-to-peer.",
-        "Absolute Anonymity: No email, no phone number, and no account creation. No metadata trail."
+        "No accounts needed: We never ask for your name, email, or password.",
+        "Leaves no trace: Once you close the page, the connection is gone forever and leaves zero records behind."
       ]
     },
     {
       icon: <Cpu size={24} className="accent" />,
-      title: "Software Development & IT",
-      description: "Developers frequently need to share massive, deeply-nested folders that are tedious to zip and upload.",
+      title: "Send Giant Work Folders",
+      description: "If you work on computers, you know how annoying it is to zip up thousands of files just to send them to a coworker.",
       points: [
-        "Speed: Sending files across a corporate LAN via P2Pear is nearly instantaneous.",
-        "Frictionless: Just drop the file in the browser. No AWS S3 buckets or pre-signed URLs required."
+        "Send whole folders: Just drop the folder right into the browser.",
+        "Super fast: If you are in the same office, it sends almost instantly over the local network."
       ]
     },
     {
       icon: <ServerOff size={24} className="accent" />,
-      title: "Offline or Restricted Environments",
-      description: "Sometimes, the internet is down, restricted, or extremely slow, but the local network (LAN) is perfectly fine.",
+      title: "Works With Bad Internet",
+      description: "What if you are at an event with terrible cell service, but you want to send a video to someone standing next to you?",
       points: [
-        "Local Routing: If both devices are on the same local network, WebRTC automatically routes files over the local LAN at gigabit router speeds."
+        "Skips the internet: If you are both on the same Wi-Fi router, the files fly through the air between your phones.",
+        "Super fast speeds: It works incredibly fast even if the outside internet is broken or slow."
       ]
     }
   ];
@@ -78,10 +79,10 @@ export const UseCasesView: React.FC = () => {
           
           <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
             <h1 className="title-gradient" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', lineHeight: 1.1, marginBottom: '1.5rem' }}>
-              P2Pear Use Cases & Scenarios
+              How to Use P2Pear
             </h1>
             <p className="subtitle" style={{ fontSize: '1.125rem', maxWidth: '700px', margin: '0 auto' }}>
-              P2Pear is not just another file-sharing tool; it is a fundamental shift in how data moves across the internet. Discover how serverless WebRTC solves problems that traditional cloud tools cannot.
+              P2Pear is the easiest way to move files across the internet. By skipping the cloud and sending files directly between devices, it solves everyday problems that regular apps cannot.
             </p>
           </div>
 
@@ -105,9 +106,9 @@ export const UseCasesView: React.FC = () => {
           </div>
 
           <div className="card" style={{ padding: '3rem', textAlign: 'center', background: 'linear-gradient(180deg, rgba(24,24,27,0.5) 0%, rgba(9,9,11,1) 100%)', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#fff' }}>Ready to go off-grid?</h2>
+            <h2 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#fff' }}>Ready to try it out?</h2>
             <p style={{ color: '#a1a1aa', marginBottom: '2rem', fontSize: '1.125rem' }}>
-              Experience the true speed of limitless, serverless peer-to-peer sharing.
+              Experience the fastest and easiest way to share files with your friends.
             </p>
             <Link to="/" className="btn btn-primary" style={{ display: 'inline-flex', padding: '1rem 2rem', fontSize: '1.125rem' }}>
               <Zap size={20} /> Open P2Pear Now
