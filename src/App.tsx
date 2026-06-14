@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { WebRTCManager, type ConnectionStatus } from './lib/webrtc';
 import { ConnectionManager } from './components/ConnectionManager';
@@ -7,9 +7,8 @@ import { FileShare } from './components/FileShare';
 import { LegalView } from './views/LegalView';
 import { SeoLandingView } from './views/SeoLandingView';
 import { UseCasesView } from './views/UseCasesView';
-import { clearWorkspace, wipeOnNewSession, syncChannel } from './lib/db';
+import { clearWorkspace, wipeOnNewSession, syncChannel, getMessages } from './lib/db';
 import { ShieldAlert, MessageSquare } from 'lucide-react';
-import './index.css';
 import './index.css';
 
 function App() {
@@ -18,6 +17,8 @@ function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const prevMsgCount = useRef(0);
 
   useEffect(() => {
     wipeOnNewSession();
@@ -47,6 +48,23 @@ function App() {
       // syncChannel is a singleton now, do not close it
     };
   }, []);
+
+  useEffect(() => {
+    getMessages().then(msgs => {
+      if (msgs.length > prevMsgCount.current) {
+        if (!isChatOpen) {
+          setUnreadCount(prev => prev + (msgs.length - prevMsgCount.current));
+        }
+      }
+      prevMsgCount.current = msgs.length;
+    });
+  }, [refreshTrigger, isChatOpen]);
+
+  useEffect(() => {
+    if (isChatOpen) {
+      setUnreadCount(0);
+    }
+  }, [isChatOpen]);
 
   // Prevent accidental reloads when connected
   useEffect(() => {
@@ -104,6 +122,9 @@ function App() {
             {!isChatOpen && (
               <button className="fab-chat" onClick={() => setIsChatOpen(true)} aria-label="Open Chat">
                 <MessageSquare size={24} />
+                {unreadCount > 0 && (
+                  <span className="unread-badge">{unreadCount}</span>
+                )}
               </button>
             )}
           </div>
