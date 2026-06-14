@@ -8,6 +8,7 @@ import { LegalView } from './views/LegalView';
 import { SeoLandingView } from './views/SeoLandingView';
 import { UseCasesView } from './views/UseCasesView';
 import { clearWorkspace, wipeOnNewSession, syncChannel, getMessages } from './lib/db';
+import { playMessageChime, showSystemNotification } from './lib/notifications';
 import { ShieldAlert, MessageSquare } from 'lucide-react';
 import './index.css';
 
@@ -54,6 +55,8 @@ function App() {
       if (msgs.length > prevMsgCount.current) {
         if (!isChatOpen) {
           setUnreadCount(prev => prev + (msgs.length - prevMsgCount.current));
+          playMessageChime();
+          showSystemNotification("New message received");
         }
       }
       prevMsgCount.current = msgs.length;

@@ -3,6 +3,7 @@ import { Plus, Link as LinkIcon, CheckCircle2, QrCode, Lock, AlertCircle, Loader
 import { QRCodeSVG } from 'qrcode.react';
 import { WebRTCManager, SignalingManager, type ConnectionStatus } from '../lib/webrtc';
 import { clearWorkspace, syncChannel } from '../lib/db';
+import { requestNotificationPermission } from '../lib/notifications';
 
 interface ConnectionManagerProps {
   rtcManager: WebRTCManager | null;
@@ -103,6 +104,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
   const handleCreateGrid = async () => {
     if (!rtcManager) return;
+    requestNotificationPermission();
     setLoadingAction('create');
     await takeoverAndClear(); // Broadcast takeover & wipe old data!
     try {
@@ -125,6 +127,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
   const handleJoinGrid = async () => {
     if (!rtcManager || !inputStr) return;
+    requestNotificationPermission();
     setLoadingAction('join');
 
     // Auto-extract the room ID if user accidentally pasted the full URL
