@@ -328,7 +328,7 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
               </div>
             {f.sender === 'peer' ? (
               <button 
-                className="btn btn-icon" 
+                className="btn-download-circle" 
                 onClick={() => handleDownload(f)} 
                 disabled={downloadingId === f.id}
                 title={downloadingId === f.id ? "Preparing download..." : "Download"}

@@ -517,6 +517,35 @@ h1, h2, h3 {
 ::-webkit-scrollbar-thumb { background: var(--bg-glass-hover); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-glass); }
 
+/* Circular Action Button for Downloads */
+.btn-download-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: var(--accent-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.btn-download-circle:hover:not(:disabled) {
+  background: var(--gradient-glow);
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3);
+}
+
+.btn-download-circle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
   .app-header {
@@ -550,6 +579,14 @@ h1, h2, h3 {
 
   .title-gradient {
     font-size: 2rem;
+  }
+
+  .file-item {
+    padding: 0.75rem;
+  }
+  
+  .file-info {
+    gap: 0.75rem;
   }
 
   .connection-panel {
