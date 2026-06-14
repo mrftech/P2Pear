@@ -51,6 +51,8 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (status !== 'connected') return;
+
     getMessages().then(msgs => {
       if (msgs.length > prevMsgCount.current) {
         if (!isChatOpen) {
@@ -61,7 +63,7 @@ function App() {
       }
       prevMsgCount.current = msgs.length;
     });
-  }, [refreshTrigger, isChatOpen]);
+  }, [refreshTrigger, isChatOpen, status]);
 
   useEffect(() => {
     if (isChatOpen) {
