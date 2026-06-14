@@ -620,6 +620,7 @@ export class SignalingManager {
     this.signalingKey = await deriveKeyFromPassword(roomId);
     this.room = joinRoom({ 
       appId: 'p2pear-v1',
+      // @ts-ignore: relayUrls is valid for nostr backend but missing from BaseRoomConfig type
       relayUrls: [
         'wss://nos.lol',
         'wss://relay.nostr.band',
