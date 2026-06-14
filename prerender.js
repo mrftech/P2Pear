@@ -33,6 +33,12 @@ const pages = [
     title: 'P2Pear | The Secure ShareDrop Alternative',
     description: 'A modern, end-to-end encrypted alternative to ShareDrop. Transfer files instantly across any network without size limits.',
     keywords: 'sharedrop alternative, p2p file transfer, secure airdrop alternative'
+  },
+  {
+    path: 'use-cases',
+    title: 'P2Pear | Professional & Secure Use Cases',
+    description: 'Discover how P2Pear is used for professional media production, secure corporate transfers, and cross-platform file sharing without limits.',
+    keywords: 'p2pear use cases, professional file transfer, secure file sharing, hipaa compliant file transfer'
   }
 ];
 

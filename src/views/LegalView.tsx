@@ -109,6 +109,12 @@ export const LegalView: React.FC<LegalViewProps> = ({ page }) => {
           <div className="legal-content" style={{ lineHeight: '1.7', color: 'var(--text-secondary)' }}>
             {body}
           </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap', marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <Link to="/use-cases" style={{ color: 'inherit', textDecoration: 'none' }}>Use Cases</Link>
+            <Link to="/about" style={{ color: page === 'about' ? '#fff' : 'inherit', textDecoration: 'none' }}>About</Link>
+            <Link to="/privacy" style={{ color: page === 'privacy' ? '#fff' : 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+            <Link to="/terms" style={{ color: page === 'terms' ? '#fff' : 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+          </div>
         </div>
       </main>
     </div>

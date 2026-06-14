@@ -6,6 +6,7 @@ import { Chat } from './components/Chat';
 import { FileShare } from './components/FileShare';
 import { LegalView } from './views/LegalView';
 import { SeoLandingView } from './views/SeoLandingView';
+import { UseCasesView } from './views/UseCasesView';
 import { clearWorkspace, wipeOnNewSession, syncChannel } from './lib/db';
 import { ShieldAlert } from 'lucide-react';
 import './index.css';
@@ -108,6 +109,7 @@ function App() {
             <Link to="/sharedrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>ShareDrop Alternative</Link>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <Link to="/use-cases" style={{ color: 'inherit', textDecoration: 'none' }}>Use Cases</Link>
             <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
             <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
             <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
@@ -121,6 +123,7 @@ function App() {
     <Routes>
       <Route path="/" element={<MainApp />} />
       <Route path="/about" element={<LegalView page="about" />} />
+      <Route path="/use-cases" element={<UseCasesView />} />
       <Route path="/privacy" element={<LegalView page="privacy" />} />
       <Route path="/terms" element={<LegalView page="terms" />} />
       <Route path="/snapdrop-alternative" element={<SeoLandingView competitor="Snapdrop" />} />
