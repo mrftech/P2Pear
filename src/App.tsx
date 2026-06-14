@@ -69,6 +69,13 @@ function App() {
     }
   }, [isChatOpen]);
 
+  useEffect(() => {
+    if (status !== 'connected') {
+      setUnreadCount(0);
+      prevMsgCount.current = 0;
+    }
+  }, [status]);
+
   // Prevent accidental reloads when connected
   useEffect(() => {
     if (status !== 'connected') return;
