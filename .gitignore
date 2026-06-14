@@ -31,3 +31,4 @@ dist-ssr
 # Internal documentation
 SIGNALING_CHANGELOG.md
 SIGNALING_ROADMAP.md
+"wrangler.toml" 
