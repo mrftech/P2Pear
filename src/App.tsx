@@ -94,8 +94,8 @@ function App() {
           />
         ) : (
           <div className="workspace-grid">
-            <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
             <FileShare rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
+            <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
           </div>
         )}
       </main>
