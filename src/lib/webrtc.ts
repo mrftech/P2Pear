@@ -1,6 +1,6 @@
 import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload, encryptChunk, decryptChunk, deriveKeyFromPassword } from './crypto';
 import { addMessage, addFile, type SharedFile } from './db';
-import { joinRoom, type Room } from 'trystero';
+import { joinRoom, type Room } from 'trystero/torrent';
 // We removed CompressionStream to fix critical crashes on iOS/iPadOS Safari 15/16.
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 export type ConnectionCallback = (status: ConnectionStatus, error?: string) => void;
