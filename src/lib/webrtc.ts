@@ -1,6 +1,6 @@
 import { generateKeyPair, exportPublicKey, importPublicKey, deriveSharedKey, encryptPayload, decryptPayload, encryptChunk, decryptChunk, deriveKeyFromPassword } from './crypto';
 import { addMessage, addFile, type SharedFile } from './db';
-import { joinRoom, type Room } from 'trystero/torrent';
+import { joinRoom, type Room } from 'trystero';
 // We removed CompressionStream to fix critical crashes on iOS/iPadOS Safari 15/16.
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 export type ConnectionCallback = (status: ConnectionStatus, error?: string) => void;
@@ -618,7 +618,14 @@ export class SignalingManager {
     console.log(`[Signaling] Joining room ${roomId}...`);
     this.rtcManager.roomId = roomId;
     this.signalingKey = await deriveKeyFromPassword(roomId);
-    this.room = joinRoom({ appId: 'p2pear-v1' }, roomId);
+    this.room = joinRoom({ 
+      appId: 'p2pear-v1',
+      relayUrls: [
+        'wss://nos.lol',
+        'wss://relay.nostr.band',
+        'wss://relay.snort.social'
+      ]
+    }, roomId);
     
     // Create a Trystero action to exchange SDP strings
     const sdpAction = this.room.makeAction('sdp') as any;
