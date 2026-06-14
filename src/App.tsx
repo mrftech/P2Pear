@@ -8,7 +8,7 @@ import { LegalView } from './views/LegalView';
 import { SeoLandingView } from './views/SeoLandingView';
 import { UseCasesView } from './views/UseCasesView';
 import { clearWorkspace, wipeOnNewSession, syncChannel } from './lib/db';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, MessageSquare } from 'lucide-react';
 import './index.css';
 import './index.css';
 
@@ -17,6 +17,7 @@ function App() {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     wipeOnNewSession();
@@ -93,9 +94,18 @@ function App() {
             onConnected={() => setStatus('connected')} 
           />
         ) : (
-          <div className="workspace-grid">
+          <div className="unified-workspace">
             <FileShare rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
-            <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
+            
+            <div className={`chat-drawer ${isChatOpen ? 'open' : ''}`}>
+              <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} onClose={() => setIsChatOpen(false)} />
+            </div>
+
+            {!isChatOpen && (
+              <button className="fab-chat" onClick={() => setIsChatOpen(true)} aria-label="Open Chat">
+                <MessageSquare size={24} />
+              </button>
+            )}
           </div>
         )}
       </main>
