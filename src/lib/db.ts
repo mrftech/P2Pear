@@ -134,7 +134,6 @@ async function hasActiveSiblingTab(): Promise<boolean> {
 
 export async function wipeOnNewSession() {
   if (sessionStorage.getItem('swarmgrid-session-active')) {
-    console.log('[DB] F5 Refresh detected. Preserving workspace.');
     acquireSessionLock();
     return;
   }
@@ -144,12 +143,10 @@ export async function wipeOnNewSession() {
   acquireSessionLock();
 
   if (siblingAlive) {
-    console.log('[DB] Sibling tab detected. Skipping workspace wipe.');
     sessionStorage.setItem('swarmgrid-session-active', 'true');
     return;
   }
 
-  console.log('[DB] New session detected. Wiping old workspace...');
   await clearWorkspace();
   sessionStorage.setItem('swarmgrid-session-active', 'true');
 }

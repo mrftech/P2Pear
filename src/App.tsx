@@ -38,7 +38,6 @@ function App() {
 
     syncChannel.onmessage = (event) => {
       if (event.data.type === 'takeover') {
-        console.log('[App] Session taken over by another tab.');
         manager.disconnectReason = 'Session paused because P2Pear was opened in another tab.';
         manager.disconnect();
       }
@@ -101,70 +100,66 @@ function App() {
     }
   };
 
-  const MainApp = () => (
-    <div className="app-layout">
-      <header className="app-header">
-        <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <img src="/favicon.png" alt="P2Pear" style={{ width: 36, height: 36 }} />
-          <span className="logo-text">P2Pear</span>
-        </Link>
-        {status === 'connected' && (
-          <button className="btn btn-danger" onClick={handleDestroy}>
-            <ShieldAlert size={18} /> Delete everything & exit
-          </button>
-        )}
-      </header>
-
-      <main className="app-main">
-        {status !== 'connected' ? (
-          <ConnectionManager 
-            rtcManager={rtcManager} 
-            status={status} 
-            errorMessage={errorMessage}
-            onConnected={() => setStatus('connected')} 
-          />
-        ) : (
-          <div className="unified-workspace">
-            <FileShare rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
-            
-            <div className={`chat-drawer ${isChatOpen ? 'open' : ''}`}>
-              <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} onClose={() => setIsChatOpen(false)} />
-            </div>
-
-            {!isChatOpen && (
-              <button className="fab-chat" onClick={() => setIsChatOpen(true)} aria-label="Open Chat">
-                <MessageSquare size={24} />
-                {unreadCount > 0 && (
-                  <span className="unread-badge">{unreadCount}</span>
-                )}
-              </button>
-            )}
-          </div>
-        )}
-      </main>
-
-      {status !== 'connected' && (
-        <footer style={{ marginTop: 'auto', padding: '2rem', textAlign: 'center', color: '#71717a', fontSize: '0.875rem' }}>
-          <p style={{ margin: '0 0 1rem 0' }}>© 2026 P2Pear</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <Link to="/snapdrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>Snapdrop Alternative</Link>
-            <Link to="/wetransfer-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>WeTransfer Alternative</Link>
-            <Link to="/sharedrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>ShareDrop Alternative</Link>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <Link to="/use-cases" style={{ color: 'inherit', textDecoration: 'none' }}>Use Cases</Link>
-            <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
-            <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
-            <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
-          </div>
-        </footer>
-      )}
-    </div>
-  );
-
   return (
     <Routes>
-      <Route path="/" element={<MainApp />} />
+      <Route path="/" element={
+        <div className={`app-layout ${status !== 'connected' ? 'app-layout-landing' : ''}`}>
+          <header className="app-header">
+            <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <img src="/favicon.png" alt="P2Pear" style={{ width: 36, height: 36 }} />
+              <span className="logo-text">P2Pear</span>
+            </Link>
+            {status === 'connected' && (
+              <button className="btn btn-danger" onClick={handleDestroy}>
+                <ShieldAlert size={18} /> Delete everything &amp; exit
+              </button>
+            )}
+          </header>
+
+          <main className="app-main">
+            {status !== 'connected' ? (
+              <ConnectionManager
+                rtcManager={rtcManager}
+                status={status}
+                errorMessage={errorMessage}
+                onConnected={() => setStatus('connected')}
+              />
+            ) : (
+              <div className="unified-workspace">
+                <FileShare rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
+
+                <div className={`chat-drawer ${isChatOpen ? 'open' : ''}`}>
+                  <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} onClose={() => setIsChatOpen(false)} />
+                </div>
+
+                <button className={`fab-chat ${isChatOpen ? 'hidden-fab' : ''}`} onClick={() => setIsChatOpen(true)} aria-label="Open Chat">
+                  <MessageSquare size={24} />
+                  {unreadCount > 0 && (
+                    <span className="unread-badge">{unreadCount}</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </main>
+
+          {status !== 'connected' && (
+            <footer className="app-footer">
+              <p className="app-footer-copy">© 2026 P2Pear</p>
+              <div className="app-footer-row">
+                <Link to="/snapdrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>Snapdrop Alternative</Link>
+                <Link to="/wetransfer-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>WeTransfer Alternative</Link>
+                <Link to="/sharedrop-alternative" style={{ color: 'inherit', textDecoration: 'none' }}>ShareDrop Alternative</Link>
+              </div>
+              <div className="app-footer-row">
+                <Link to="/use-cases" style={{ color: 'inherit', textDecoration: 'none' }}>Use Cases</Link>
+                <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
+                <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
+                <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
+              </div>
+            </footer>
+          )}
+        </div>
+      } />
       <Route path="/about" element={<LegalView page="about" />} />
       <Route path="/use-cases" element={<UseCasesView />} />
       <Route path="/privacy" element={<LegalView page="privacy" />} />

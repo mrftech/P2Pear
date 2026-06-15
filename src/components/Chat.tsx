@@ -12,7 +12,8 @@ interface ChatProps {
 export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputStr, setInputStr] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
 
   const loadMessages = async () => {
     const msgs = await getMessages();
@@ -24,7 +25,14 @@ export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose 
   }, [refreshTrigger]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: isInitialMount.current ? 'auto' : 'smooth'
+      });
+    }
+    isInitialMount.current = false;
   }, [messages]);
 
 
@@ -61,7 +69,7 @@ export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose 
         )}
       </div>
       
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesContainerRef}>
         {messages.length === 0 && (
           <div className="text-center text-zinc-500 mt-8">
             No messages yet. Say hello!
@@ -73,7 +81,6 @@ export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose 
             <div className="chat-time">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
       </div>
 
       <form className="chat-input-area" onSubmit={handleSend}>

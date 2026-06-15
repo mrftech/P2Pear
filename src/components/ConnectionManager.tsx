@@ -109,9 +109,11 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
     await takeoverAndClear(); // Broadcast takeover & wipe old data!
     try {
       // Generate a short 6-character alphanumeric room ID for optimal early UX.
-      // FUTURE BACKUP: If the app scales to >50k concurrent users, consider switching 
-      // to an 8-character or 3-word dictionary format to prevent math collisions.
-      const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const array = new Uint32Array(1);
+      window.crypto.getRandomValues(array);
+      // Generate a number between 0 and 2176782335 (36^6 - 1) to ensure exactly 6 base-36 characters
+      const randomNum = array[0] % 2176782336;
+      const newRoomId = randomNum.toString(36).padStart(6, '0').toUpperCase();
       
       sigManagerRef.current = new SignalingManager(rtcManager);
       sigManagerRef.current.join(newRoomId, true);
@@ -225,6 +227,10 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
             <div className="connecting-ring"></div>
             <p className="status-text pulse text-center">Waiting for peer to connect...</p>
+
+            <button className="btn" style={{ marginTop: '1rem', color: 'var(--text-secondary)' }} onClick={() => { setMode('idle'); if (sigManagerRef.current) sigManagerRef.current.leave(); }}>
+              Cancel
+            </button>
           </div>
         )}
 
@@ -237,6 +243,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
               {joinPhase === 1 && "Connection taking longer than usual. Negotiating firewalls..."}
               {joinPhase === 2 && "Still searching... Please ensure the creator's tab is active and open."}
             </div>
+            <button className="btn" style={{ marginTop: '1rem', color: 'var(--text-secondary)' }} onClick={() => { setMode('idle'); if (sigManagerRef.current) sigManagerRef.current.leave(); }}>
+              Cancel
+            </button>
           </div>
         )}
 

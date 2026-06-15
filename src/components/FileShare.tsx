@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WebRTCManager } from '../lib/webrtc';
 import { getFiles, type SharedFile } from '../lib/db';
-import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2, Loader2, Image as ImageIcon, Film, FileText, FileArchive, FileCode, FileAudio } from 'lucide-react';
+import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2, Loader2, Image as ImageIcon, Film, FileText, FileArchive, FileCode, FileAudio, X } from 'lucide-react';
 
 interface FileShareProps {
   rtcManager: WebRTCManager;
@@ -15,6 +15,8 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
   const [progresses, setProgresses] = useState<{
     [fileId: string]: { name: string, bytes: number, total: number, type: 'upload' | 'download' }
   }>({});
+  const [queue, setQueue] = useState<{ id: string; file: File }[]>([]);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -53,14 +55,33 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
 
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
-    for (let i = 0; i < selectedFiles.length; i++) {
-      try {
-        await rtcManager.sendFile(selectedFiles[i]);
-      } catch (e) {
-        console.error('Failed to send file:', e);
-      }
-    }
+    const newQueueItems = Array.from(selectedFiles).map(file => ({
+      id: crypto.randomUUID(),
+      file
+    }));
+    setQueue(prev => [...prev, ...newQueueItems]);
   };
+
+  useEffect(() => {
+    if (isSending || queue.length === 0) return;
+
+    const processQueue = async () => {
+      setIsSending(true);
+      const sortedQueue = [...queue].sort((a, b) => a.file.size - b.file.size);
+      setQueue([]);
+
+      for (const item of sortedQueue) {
+        try {
+          await rtcManager.sendFile(item.file);
+        } catch (e) {
+          console.error('Failed to send file:', e);
+        }
+      }
+      setIsSending(false);
+    };
+
+    processQueue();
+  }, [queue, isSending, rtcManager]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -278,7 +299,9 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
                 width: `${Math.max(1, (p.bytes/p.total)*100)}%`, 
                 background: 'rgba(34, 211, 238, 0.08)',
                 transition: 'width 0.3s ease',
-                zIndex: 0
+                zIndex: 0,
+                borderRadius: 'var(--radius-md)',
+                maxWidth: 'calc(100% - 2px)'
               }} 
             />
             {/* Top edge highlight */}
@@ -289,7 +312,9 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
                 width: `${Math.max(1, (p.bytes/p.total)*100)}%`, 
                 background: 'var(--primary-color)',
                 transition: 'width 0.3s ease',
-                zIndex: 1
+                zIndex: 1,
+                borderRadius: 'var(--radius-md)',
+                maxWidth: 'calc(100% - 2px)'
               }} 
             />
 
@@ -310,12 +335,32 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
           </div>
         ))}
 
-        {files.length === 0 && Object.keys(progresses).length === 0 && (
+        {queue.map((item) => (
+          <div key={item.id} className="file-item" style={{ opacity: 0.7 }}>
+            <div className="file-info">
+              <FileIcon size={24} className="text-zinc-500" />
+              <div className="file-details">
+                <span className="file-name">{item.file.name}</span>
+                <span className="file-meta">{formatSize(item.file.size)} • {getDisplayFormat(item.file.name, item.file.type)} • Waiting...</span>
+              </div>
+            </div>
+            <button
+              className="btn-icon"
+              onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))}
+              aria-label="Remove from queue"
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        ))}
+
+        {files.length === 0 && Object.keys(progresses).length === 0 && queue.length === 0 && (
           <div className="file-empty text-center text-zinc-500 mt-4">
             No files shared yet.
           </div>
         )}
-        {files.map((f) => {
+        {files.filter(f => !progresses[f.id]).map((f) => {
           const DynamicIcon = getFileIcon(f.type);
           return (
             <div key={f.id} className="file-item">

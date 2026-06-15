@@ -50,7 +50,6 @@ export class WebRTCManager {
     
     try {
       this.opfsWorker = new Worker(new URL('./opfs.worker.ts', import.meta.url), { type: 'module' });
-      console.log('[WebRTC] OPFS Worker initialized.');
     } catch (e) {
       console.warn('[WebRTC] Failed to initialize OPFS Worker. Will fallback to RAM.', e);
     }
@@ -89,22 +88,18 @@ export class WebRTCManager {
     };
 
     this.pc.oniceconnectionstatechange = () => {
-      console.log('[WebRTC] ICE Connection State:', this.pc.iceConnectionState);
       if (this.pc.iceConnectionState === 'failed') {
         this.onConnectionStatusChange('error', 'Connection failed');
       }
     };
 
     this.pc.onsignalingstatechange = () => {
-      console.log('[WebRTC] Signaling State:', this.pc.signalingState);
     };
 
     this.pc.onicegatheringstatechange = () => {
-      console.log('[WebRTC] ICE Gathering State:', this.pc.iceGatheringState);
     };
 
     this.pc.ondatachannel = (event) => {
-      console.log('[WebRTC] Received remote DataChannel');
       this.dataChannel = event.channel;
       this.setupDataChannel();
     };
@@ -116,7 +111,6 @@ export class WebRTCManager {
     this.dataChannel.bufferedAmountLowThreshold = 65536; // 64KB threshold for event firing
     
     const handleOpen = () => {
-      console.log('[DataChannel] Opened!');
       this.onConnectionStatusChange('connected');
       this.resetIdleTimer();
     };
@@ -128,7 +122,6 @@ export class WebRTCManager {
     }
 
     this.dataChannel.onclose = () => {
-      console.log('[DataChannel] Closed!');
       this.onConnectionStatusChange('error', this.disconnectReason || 'Connection closed');
     };
 
@@ -160,7 +153,6 @@ export class WebRTCManager {
               const workerListener = (e: MessageEvent) => {
                 if (e.data.fileId === receiveId) {
                   if (e.data.type === 'init-success') {
-                    console.log(`[WebRTC] OPFS stream created via Worker for ${data.name}`);
                     this.opfsWorker?.removeEventListener('message', workerListener);
                     resolveOpfs(true);
                   } else if (e.data.type === 'init-error') {
@@ -320,13 +312,11 @@ export class WebRTCManager {
         try {
           const root = await navigator.storage.getDirectory();
           handle = await root.getFileHandle(`swarmgrid-${fileId}`);
-          console.log(`[WebRTC] File saved to OPFS successfully`);
         } catch (opfsErr) {
           console.error(`[WebRTC] Could not get file handle after worker close:`, opfsErr);
         }
       } else {
         finalBlob = new Blob(state.ramFallback as any[], { type: state.meta.type });
-        console.log(`[WebRTC] File assembled in RAM successfully`);
       }
       
       const sharedFile: SharedFile = {
@@ -354,16 +344,13 @@ export class WebRTCManager {
   }
 
   public async generateOffer(): Promise<any> {
-    console.log('[WebRTC] Generating Offer...');
     this.ecdhKeyPair = await generateKeyPair();
     const publicKeyBase64 = await exportPublicKey(this.ecdhKeyPair.publicKey);
 
     this.dataChannel = this.pc.createDataChannel('swarm-grid');
-    console.log('[WebRTC] Created local DataChannel');
     this.setupDataChannel();
 
     const offer = await this.pc.createOffer();
-    console.log('[WebRTC] Created Offer SDP');
     await this.pc.setLocalDescription(offer);
 
     const payload = {
@@ -376,21 +363,16 @@ export class WebRTCManager {
 
   public async handleOffer(payload: any): Promise<any> {
     try {
-      console.log('[WebRTC] Handling remote Offer...');
-      
       this.ecdhKeyPair = await generateKeyPair();
       const myPublicKeyBase64 = await exportPublicKey(this.ecdhKeyPair.publicKey);
       
       const peerPublicKey = await importPublicKey(payload.publicKey);
       this.sharedKey = await deriveSharedKey(this.ecdhKeyPair.privateKey, peerPublicKey);
-      console.log('[WebRTC] ECDH Shared Key derived');
 
       await this.pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      console.log('[WebRTC] Remote description set');
 
       const answer = await this.pc.createAnswer();
       await this.pc.setLocalDescription(answer);
-      console.log('[WebRTC] Created Answer SDP');
 
       const answerPayload = {
         sdp: this.pc.localDescription,
@@ -407,7 +389,6 @@ export class WebRTCManager {
 
   public async handleAnswer(payload: any) {
     try {
-      console.log('[WebRTC] Handling remote Answer...');
       const peerPublicKey = await importPublicKey(payload.publicKey);
       
       if (!this.ecdhKeyPair) throw new Error("Local key pair not found.");
@@ -417,10 +398,8 @@ export class WebRTCManager {
       }
 
       this.sharedKey = await deriveSharedKey(this.ecdhKeyPair.privateKey, peerPublicKey);
-      console.log('[WebRTC] ECDH Shared Key derived');
       
       await this.pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      console.log('[WebRTC] Remote description set successfully. Connecting...');
     } catch (e) {
       console.error('[WebRTC] Error in handleAnswer:', e);
       this.onConnectionStatusChange('error', 'Invalid Answer string.');
@@ -597,7 +576,6 @@ export class WebRTCManager {
   private resetIdleTimer() {
     if (this.idleTimeoutTimer) clearTimeout(this.idleTimeoutTimer);
     this.idleTimeoutTimer = setTimeout(() => {
-      console.log('[WebRTC] Connection idle for 30 minutes. Disconnecting...');
       this.disconnectReason = 'Connection closed due to 30 minutes of inactivity.';
       this.disconnect();
     }, this.IDLE_TIMEOUT_MS);
@@ -615,7 +593,6 @@ export class SignalingManager {
   }
 
   public async join(roomId: string, isCreator: boolean) {
-    console.log(`[Signaling] Joining room ${roomId}...`);
     this.rtcManager.roomId = roomId;
     this.signalingKey = await deriveKeyFromPassword(roomId);
     this.room = joinRoom({ 
@@ -658,7 +635,7 @@ export class SignalingManager {
           await this.rtcManager.addIceCandidates(data.candidates);
         }
       } catch (e) {
-        // Silently ignore failed decryption (could be an attacker or wrong code)
+        console.debug("[Signaling] Failed to decrypt ICE candidate (invalid key or malformed)", e);
       }
     };
 
@@ -670,7 +647,6 @@ export class SignalingManager {
         const data = JSON.parse(decryptedJson);
 
         if (data.type === 'offer' && !isCreator) {
-          console.log(`[Signaling] Received valid Offer from ${peerId}`);
           const answer = await this.rtcManager.handleOffer(data.sdp);
           
           const answerPayload = JSON.stringify({ type: 'answer', sdp: answer });
@@ -680,18 +656,16 @@ export class SignalingManager {
           // Leave the tracker room after 8 seconds to allow trickle ICE to finish
           setTimeout(() => this.leave(), 8000); 
         } else if (data.type === 'answer' && isCreator) {
-          console.log(`[Signaling] Received valid Answer from ${peerId}`);
           await this.rtcManager.handleAnswer(data.sdp);
           // Leave the tracker room after 8 seconds to allow trickle ICE to finish
           setTimeout(() => this.leave(), 8000);
         }
       } catch (e) {
-        // Silently ignore
+        console.debug("[Signaling] Failed to decrypt SDP payload (invalid key or malformed)", e);
       }
     };
 
     (this.room as any).onPeerJoin = async (peerId: string) => {
-      console.log(`[Signaling] Peer ${peerId} joined tracker room`);
       if (isCreator && this.signalingKey) {
         this.targetPeerId = peerId;
         try {
@@ -709,7 +683,6 @@ export class SignalingManager {
 
   public leave() {
     if (this.room) {
-      console.log('[Signaling] Leaving tracker room');
       this.room.leave();
       this.room = null;
     }
