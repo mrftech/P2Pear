@@ -39,7 +39,20 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         }, 3000);
       }
     };
-    return () => { rtcManager.onProgress = undefined; };
+
+    rtcManager.onTransferError = (fileId, error) => {
+      alert(`Transfer failed: ${error}`);
+      setProgresses(prev => {
+        const next = {...prev};
+        delete next[fileId];
+        return next;
+      });
+    };
+
+    return () => { 
+      rtcManager.onProgress = undefined; 
+      rtcManager.onTransferError = undefined;
+    };
   }, [rtcManager]);
 
   const loadFiles = async () => {

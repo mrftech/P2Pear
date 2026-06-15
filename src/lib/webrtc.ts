@@ -6,6 +6,7 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 export type ConnectionCallback = (status: ConnectionStatus, error?: string) => void;
 export type MessageCallback = () => void;
 export type ProgressCallback = (fileId: string, name: string, bytes: number, total: number, type: 'upload' | 'download') => void;
+export type TransferErrorCallback = (fileId: string, error: string) => void;
 
 export class WebRTCManager {
   public pc: RTCPeerConnection;
@@ -13,6 +14,8 @@ export class WebRTCManager {
   public onConnectionStatusChange: ConnectionCallback;
   private onNewData: MessageCallback;
   public onProgress?: ProgressCallback;
+  public onTransferError?: TransferErrorCallback;
+  private cancelledTransfers: Set<string> = new Set();
   private ecdhKeyPair: CryptoKeyPair | null = null;
   private sharedKey: CryptoKey | null = null;
   private ackListeners: { [fileId: string]: (ackIndex: number) => void } = {};
@@ -50,12 +53,19 @@ export class WebRTCManager {
     
     try {
       this.opfsWorker = new Worker(new URL('./opfs.worker.ts', import.meta.url), { type: 'module' });
+      this.opfsWorker.addEventListener('message', (e: MessageEvent) => {
+        if (e.data.type === 'write-error') {
+          this.handleWriteError(e.data.fileId, e.data.error);
+        }
+      });
     } catch (e) {
       console.warn('[WebRTC] Failed to initialize OPFS Worker. Will fallback to RAM.', e);
     }
     
     // Using public STUN servers for NAT traversal
     this.pc = new RTCPeerConnection({
+      iceCandidatePoolSize: 2,
+      bundlePolicy: 'max-bundle',
       iceServers: [
         { urls: 'stun:stun.cloudflare.com:3478' },
         { urls: 'stun:stun.l.google.com:19302' },
@@ -103,6 +113,18 @@ export class WebRTCManager {
       this.dataChannel = event.channel;
       this.setupDataChannel();
     };
+  }
+
+  private handleWriteError(fileId: string, error: string) {
+    const state = this.activeReceives[fileId];
+    if (state) {
+      console.error(`[WebRTC] Write error for ${fileId}: ${error}`);
+      if (this.dataChannel && this.dataChannel.readyState === 'open') {
+        this.dataChannel.send(JSON.stringify({ type: 'file-error', id: fileId, error: 'Receiver out of storage space' }));
+      }
+      delete this.activeReceives[fileId];
+      if (this.onTransferError) this.onTransferError(fileId, 'Out of storage space');
+    }
   }
 
   private setupDataChannel() {
@@ -196,6 +218,9 @@ export class WebRTCManager {
               receiveState.isDone = true;
               this.processWriteQueue(data.id);
             }
+          } else if (data.type === 'file-error') {
+            this.cancelledTransfers.add(data.id);
+            if (this.onTransferError) this.onTransferError(data.id, data.error);
           }
         } else {
           // Binary chunk
@@ -257,7 +282,12 @@ export class WebRTCManager {
           // chunk.data is not used again, we could transfer it, but structured clone is fast enough for 16KB.
           this.opfsWorker.postMessage({ type: 'write', fileId, chunk: chunk.data });
         } else {
-          state.ramFallback.push(chunk.data);
+          try {
+            state.ramFallback.push(chunk.data);
+          } catch (err: any) {
+            this.handleWriteError(fileId, "Out of memory");
+            return;
+          }
         }
         
         state.nextIndex++;
@@ -496,6 +526,12 @@ export class WebRTCManager {
     };
 
     while (true) {
+      if (this.cancelledTransfers.has(fileId)) {
+        this.cancelledTransfers.delete(fileId);
+        delete this.ackListeners[fileId];
+        return; // Abort transfer immediately
+      }
+
       // Cross-machine backpressure: Wait if receiver disk is falling behind (300 chunks = ~4.8MB)
       if (chunkIndex - lastAckedIndex > 300) {
         let failsafeTimer: any;
