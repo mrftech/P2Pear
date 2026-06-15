@@ -4,12 +4,13 @@ import { WebRTCManager, type ConnectionStatus } from './lib/webrtc';
 import { ConnectionManager } from './components/ConnectionManager';
 import { Chat } from './components/Chat';
 import { FileShare } from './components/FileShare';
+import { ReloadPrompt } from './components/ReloadPrompt';
 import { LegalView } from './views/LegalView';
 import { SeoLandingView } from './views/SeoLandingView';
 import { UseCasesView } from './views/UseCasesView';
 import { clearWorkspace, wipeOnNewSession, syncChannel, getMessages } from './lib/db';
 import { playMessageChime, showSystemNotification } from './lib/notifications';
-import { ShieldAlert, MessageSquare } from 'lucide-react';
+import { ShieldAlert, MessageSquare, AlertCircle } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [hasBeenConnected, setHasBeenConnected] = useState(false);
   const prevMsgCount = useRef(0);
 
   useEffect(() => {
@@ -27,6 +29,9 @@ function App() {
     const manager = new WebRTCManager(
       (newStatus, error) => {
         setStatus(newStatus);
+        if (newStatus === 'connected') {
+          setHasBeenConnected(true);
+        }
         if (error) setErrorMessage(error);
       },
       () => {
@@ -101,8 +106,10 @@ function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/" element={
+    <>
+      <ReloadPrompt />
+      <Routes>
+        <Route path="/" element={
         <div className={`app-layout ${status !== 'connected' ? 'app-layout-landing' : ''}`}>
           <header className="app-header">
             <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -117,7 +124,7 @@ function App() {
           </header>
 
           <main className="app-main">
-            {status !== 'connected' ? (
+            {!hasBeenConnected && status !== 'connected' ? (
               <ConnectionManager
                 rtcManager={rtcManager}
                 status={status}
@@ -125,11 +132,23 @@ function App() {
                 onConnected={() => setStatus('connected')}
               />
             ) : (
-              <div className="unified-workspace">
-                <FileShare rtcManager={rtcManager!} refreshTrigger={refreshTrigger} />
+              <div className="unified-workspace" style={{ display: 'flex', flexDirection: 'column' }}>
+                {status !== 'connected' && (
+                  <div className="offline-banner alert-danger" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 2rem 1rem 2rem', padding: '1rem', borderRadius: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', zIndex: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <AlertCircle size={20} color="#ef4444" />
+                      <span style={{ color: '#ef4444' }}><strong>Connection lost.</strong> You are now offline. You can still save your downloaded files.</span>
+                    </div>
+                    <button className="btn btn-danger btn-sm" onClick={handleDestroy} style={{ margin: 0, padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                      Start New Session
+                    </button>
+                  </div>
+                )}
+                
+                <FileShare rtcManager={rtcManager!} refreshTrigger={refreshTrigger} status={status} />
 
                 <div className={`chat-drawer ${isChatOpen ? 'open' : ''}`}>
-                  <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} onClose={() => setIsChatOpen(false)} />
+                  <Chat rtcManager={rtcManager!} refreshTrigger={refreshTrigger} onClose={() => setIsChatOpen(false)} isOpen={isChatOpen} status={status} />
                 </div>
 
                 <button className={`fab-chat ${isChatOpen ? 'hidden-fab' : ''}`} onClick={() => setIsChatOpen(true)} aria-label="Open Chat">
@@ -168,6 +187,7 @@ function App() {
       <Route path="/wetransfer-alternative" element={<SeoLandingView competitor="WeTransfer" />} />
       <Route path="/sharedrop-alternative" element={<SeoLandingView competitor="ShareDrop" />} />
     </Routes>
+    </>
   );
 }
 

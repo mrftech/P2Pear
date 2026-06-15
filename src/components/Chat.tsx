@@ -7,12 +7,15 @@ interface ChatProps {
   rtcManager: WebRTCManager;
   refreshTrigger: number;
   onClose?: () => void;
+  isOpen?: boolean;
+  status?: string;
 }
 
-export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose }) => {
+export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose, isOpen, status }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputStr, setInputStr] = useState('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isInitialMount = useRef(true);
 
   const loadMessages = async () => {
@@ -35,6 +38,12 @@ export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose 
     isInitialMount.current = false;
   }, [messages]);
 
+  useEffect(() => {
+    if (isOpen && window.innerWidth > 768) {
+      // Small timeout ensures the element is fully paintable before focus
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,12 +94,14 @@ export const Chat: React.FC<ChatProps> = ({ rtcManager, refreshTrigger, onClose 
 
       <form className="chat-input-area" onSubmit={handleSend}>
         <input
+          ref={inputRef}
           className="input flex-1"
-          placeholder="Type a message..."
+          placeholder={status !== 'connected' ? "Chat unavailable (offline)" : "Type a message..."}
           value={inputStr}
           onChange={(e) => setInputStr(e.target.value)}
+          disabled={status !== 'connected'}
         />
-        <button type="submit" className="btn btn-primary" disabled={!inputStr.trim()}>
+        <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem' }} disabled={!inputStr.trim() || status !== 'connected'}>
           <Send size={18} />
         </button>
       </form>

@@ -6,9 +6,10 @@ import { UploadCloud, File as FileIcon, Download, CheckCircle2, Share2, Loader2,
 interface FileShareProps {
   rtcManager: WebRTCManager;
   refreshTrigger: number;
+  status?: string;
 }
 
-export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger }) => {
+export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger, status }) => {
   const [files, setFiles] = useState<SharedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -82,21 +83,6 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
 
     processQueue();
   }, [queue, isSending, rtcManager]);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFileSelect(e.dataTransfer.files);
-  };
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -263,14 +249,21 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
       
       <div 
         className={`drop-zone ${isDragging ? 'dragging' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); if (status === 'connected') setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          if (status === 'connected') handleFileSelect(e.dataTransfer.files);
+        }}
+        onClick={() => status === 'connected' && fileInputRef.current?.click()}
+        style={{ opacity: status !== 'connected' ? 0.5 : 1, cursor: status !== 'connected' ? 'not-allowed' : 'pointer' }}
       >
         <div className="flex-col items-center gap-2">
           <UploadCloud size={32} className="text-zinc-400" />
-          <p className="text-zinc-300">Drag and drop files here, or click to pick files</p>
+          <p className="text-zinc-300">
+            {status === 'connected' ? 'Drag and drop files here, or click to pick files' : 'Upload disabled (offline)'}
+          </p>
         </div>
         <input 
           type="file" 
