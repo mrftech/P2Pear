@@ -588,16 +588,22 @@ export class WebRTCManager {
     delete this.ackListeners[fileId];
 
     // Save to local DB unencrypted
-    await addFile({
-      id: fileId,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      blob: file,
-      sender: 'me',
-      timestamp: Date.now()
-    });
-    this.onNewData();
+    // Omit the blob for the sender to prevent massive IndexedDB duplication and quota errors.
+    // The sender does not need to download their own file anyway.
+    try {
+      await addFile({
+        id: fileId,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        blob: undefined,
+        sender: 'me',
+        timestamp: Date.now()
+      });
+      this.onNewData();
+    } catch (dbErr) {
+      console.error("[WebRTC] Failed to save sender file metadata to DB:", dbErr);
+    }
     if (this.onProgress) {
       this.onProgress(fileId, file.name, file.size, file.size, 'upload');
     }

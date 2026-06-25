@@ -14,7 +14,15 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
   const [isDragging, setIsDragging] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [progresses, setProgresses] = useState<{
-    [fileId: string]: { name: string, bytes: number, total: number, type: 'upload' | 'download' }
+    [fileId: string]: { 
+      name: string, 
+      bytes: number, 
+      total: number, 
+      type: 'upload' | 'download',
+      speed: number,
+      lastTime: number,
+      lastBytes: number
+    }
   }>({});
   const [queue, setQueue] = useState<{ id: string; file: File }[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -23,10 +31,42 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
   useEffect(() => {
     // eslint-disable-next-line react-hooks/immutability
     rtcManager.onProgress = (fileId, name, bytes, total, type) => {
-      setProgresses(prev => ({
-        ...prev,
-        [fileId]: { name, bytes, total, type }
-      }));
+      setProgresses(prev => {
+        const now = Date.now();
+        const prevProg = prev[fileId];
+        
+        let speed = prevProg?.speed || 0;
+        let lastTime = prevProg?.lastTime || now;
+        let lastBytes = prevProg?.lastBytes || bytes;
+        
+        if (prevProg && now > prevProg.lastTime) {
+           const timeDiff = (now - prevProg.lastTime) / 1000; // in seconds
+           if (timeDiff >= 0.5) { // Only recalculate speed every 500ms
+               const bytesDiff = bytes - prevProg.lastBytes;
+               const currentSpeed = bytesDiff / timeDiff;
+               // Exponential moving average for smoother speed
+               speed = speed === 0 ? currentSpeed : speed * 0.7 + currentSpeed * 0.3;
+               lastTime = now;
+               lastBytes = bytes;
+           }
+        } else if (!prevProg) {
+           lastTime = now;
+           lastBytes = bytes;
+        }
+
+        return {
+          ...prev,
+          [fileId]: { 
+            name, 
+            bytes, 
+            total, 
+            type,
+            speed,
+            lastTime,
+            lastBytes
+          }
+        };
+      });
       
       // Clean up when complete
       if (bytes >= total) {
@@ -100,7 +140,25 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  };
+
+  const formatSpeed = (bytesPerSec: number) => {
+    if (bytesPerSec < 1024) return bytesPerSec.toFixed(0) + ' B/s';
+    if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + ' KB/s';
+    if (bytesPerSec < 1024 * 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(1) + ' MB/s';
+    return (bytesPerSec / (1024 * 1024 * 1024)).toFixed(2) + ' GB/s';
+  };
+
+  const formatETA = (seconds: number) => {
+    if (!isFinite(seconds) || seconds < 0) return 'Calculating...';
+    if (seconds < 60) return `${Math.ceil(seconds)}s left`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.ceil(seconds % 60);
+    if (mins < 60) return `~${mins}m ${secs}s left`;
+    const hours = Math.floor(mins / 60);
+    return `~${hours}h ${mins % 60}m left`;
   };
 
   const getFileIcon = (mimeType: string) => {
@@ -297,18 +355,10 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
         
         {Object.entries(progresses).map(([fileId, p]) => (
           <div key={`prog-${fileId}`} className="file-item" style={{ position: 'relative', overflow: 'hidden' }}>
-            {/* Very subtle background fill for progress */}
+            {/* 3D Tactile Progress Bar */}
             <div 
-              style={{
-                position: 'absolute', 
-                top: 0, left: 0, bottom: 0, 
-                width: `${Math.max(1, (p.bytes/p.total)*100)}%`, 
-                background: 'rgba(34, 211, 238, 0.08)',
-                transition: 'width 0.3s ease',
-                zIndex: 0,
-                borderRadius: 'var(--radius-md)',
-                maxWidth: 'calc(100% - 2px)'
-              }} 
+              className="progress-bar"
+              style={{ width: `${Math.max(1, (p.bytes/p.total)*100)}%` }} 
             />
             {/* Top edge highlight */}
             <div 
@@ -335,6 +385,9 @@ export const FileShare: React.FC<FileShareProps> = ({ rtcManager, refreshTrigger
                 </div>
                 <span className="file-meta">
                   {formatSize(p.bytes)} / {formatSize(p.total)} • {getDisplayFormat(p.name)}
+                  {p.bytes < p.total && (
+                    <> • {p.speed > 0 ? formatSpeed(p.speed) : 'Calculating...'} • {p.speed > 0 ? formatETA((p.total - p.bytes) / p.speed) : '...'} </>
+                  )}
                 </span>
               </div>
             </div>

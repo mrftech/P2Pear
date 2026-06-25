@@ -175,7 +175,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
         {status === 'error' && (
           <div className="alert-danger fade-in">
             <AlertCircle size={20} />
-            {errorMessage || 'Connection failed. Please try creating a new link.'}
+            <span>{errorMessage || 'Connection failed. Please try creating a new link.'}</span>
           </div>
         )}
 
@@ -211,7 +211,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
                 <span>{roomId}</span>
                 {copiedLink ? <CheckCircle2 size={32} className="color-success" /> : <Copy size={32} className="code-badge-icon" />}
               </div>
-              <div className="copy-hint">{copiedLink ? 'Copied to clipboard!' : 'Click to copy direct link'}</div>
+              <div className={`copy-hint ${copiedLink ? 'visible' : ''}`}>{copiedLink ? 'Copied to clipboard!' : 'Click to copy direct link'}</div>
             </div>
 
             <button className="btn" style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)' }} onClick={() => setShowQR(!showQR)}>
@@ -251,12 +251,12 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
         {mode === 'expired' && (
           <div className="flex-col text-center fade-in items-center" style={{ gap: '1rem' }}>
-            <div className="alert-danger" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1.5rem', borderRadius: '1rem' }}>
-              <AlertCircle size={32} color="#ef4444" />
-              <h2 style={{ color: '#ef4444', fontWeight: 600 }}>Room Code Expired</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                For your security, room codes automatically expire after 10 minutes if no one connects.
-              </p>
+            <div className="alert-danger" style={{ textAlign: 'left', width: '100%', alignItems: 'flex-start' }}>
+              <AlertCircle size={20} style={{ marginTop: '2px' }} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <strong style={{ marginBottom: '0.2rem' }}>Room Code Expired</strong>
+                <span className="offline-subtext">For your security, room codes expire after 10 minutes.</span>
+              </div>
             </div>
             <button className="btn btn-primary w-full mt-2" onClick={() => setMode('idle')}>
               Generate New Code
@@ -266,12 +266,12 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ rtcManager
 
         {mode === 'not_found' && (
           <div className="flex-col text-center fade-in items-center" style={{ gap: '1rem' }}>
-            <div className="alert-danger" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1.5rem', borderRadius: '1rem' }}>
-              <AlertCircle size={32} color="#ef4444" />
-              <h2 style={{ color: '#ef4444', fontWeight: 600 }}>Room Not Found</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                This room link is invalid, expired, or has already been used. P2Pear rooms are single-use and disappear instantly once closed.
-              </p>
+            <div className="alert-danger" style={{ textAlign: 'left', width: '100%', alignItems: 'flex-start' }}>
+              <AlertCircle size={20} style={{ marginTop: '2px' }} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <strong style={{ marginBottom: '0.2rem' }}>Room Not Found</strong>
+                <span className="offline-subtext">This link is invalid or already used. Rooms are single-use.</span>
+              </div>
             </div>
             <button className="btn btn-primary w-full mt-2" onClick={() => {
               setMode('idle');

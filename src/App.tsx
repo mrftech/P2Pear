@@ -10,7 +10,7 @@ import { SeoLandingView } from './views/SeoLandingView';
 import { UseCasesView } from './views/UseCasesView';
 import { clearWorkspace, wipeOnNewSession, syncChannel, getMessages } from './lib/db';
 import { playMessageChime, showSystemNotification } from './lib/notifications';
-import { ShieldAlert, MessageSquare, AlertCircle } from 'lucide-react';
+import { MessageSquare, AlertCircle, LogOut } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -21,6 +21,7 @@ function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [hasBeenConnected, setHasBeenConnected] = useState(false);
+  const [isDestroying, setIsDestroying] = useState(false);
   const prevMsgCount = useRef(0);
 
   useEffect(() => {
@@ -97,7 +98,8 @@ function App() {
   }, [status]);
 
   const handleDestroy = async () => {
-    if (confirm("Are you sure? This will delete all chats and files from your device forever.")) {
+    if (confirm("End secure session? All shared files and chat history will be securely wiped from this device.")) {
+      setIsDestroying(true);
       rtcManager?.disconnect();
       await clearWorkspace();
       sessionStorage.removeItem('swarmgrid-session-active');
@@ -117,8 +119,8 @@ function App() {
               <span className="logo-text">P2Pear</span>
             </Link>
             {status === 'connected' && (
-              <button className="btn btn-danger" onClick={handleDestroy}>
-                <ShieldAlert size={18} /> Delete everything &amp; exit
+              <button className="btn btn-end-session" onClick={handleDestroy}>
+                <LogOut size={18} /> End Session
               </button>
             )}
           </header>
@@ -133,14 +135,17 @@ function App() {
               />
             ) : (
               <div className="unified-workspace" style={{ display: 'flex', flexDirection: 'column' }}>
-                {status !== 'connected' && (
-                  <div className="offline-banner alert-danger" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 2rem 1rem 2rem', padding: '1rem', borderRadius: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', zIndex: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <AlertCircle size={20} color="#ef4444" />
-                      <span style={{ color: '#ef4444' }}><strong>Connection lost.</strong> You are now offline. You can still save your downloaded files.</span>
+                {status !== 'connected' && !isDestroying && (
+                  <div className="offline-status">
+                    <div className="offline-status-content">
+                      <AlertCircle size={20} className="toast-icon" />
+                      <div className="offline-status-text">
+                        <strong>Peer disconnected</strong>
+                        <span className="offline-subtext">You can still save received files.</span>
+                      </div>
                     </div>
-                    <button className="btn btn-danger btn-sm" onClick={handleDestroy} style={{ margin: 0, padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                      Start New Session
+                    <button className="btn btn-outline" onClick={handleDestroy} style={{ margin: 0, padding: '0.4rem 0.8rem', fontSize: '0.85rem', flexShrink: 0 }}>
+                      Return Home
                     </button>
                   </div>
                 )}
@@ -172,6 +177,7 @@ function App() {
               <div className="app-footer-row">
                 <Link to="/use-cases" style={{ color: 'inherit', textDecoration: 'none' }}>Use Cases</Link>
                 <Link to="/about" style={{ color: 'inherit', textDecoration: 'none' }}>About</Link>
+                <a href="https://github.com/mrftech/P2Pear" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>GitHub</a>
                 <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</Link>
                 <Link to="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</Link>
               </div>
