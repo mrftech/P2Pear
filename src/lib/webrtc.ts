@@ -72,9 +72,9 @@ export class WebRTCManager {
         { urls: 'stun:stun.relay.metered.ca:80' },
         { 
           urls: [
-            'turn:global.relay.metered.ca:80',
-            'turn:global.relay.metered.ca:80?transport=tcp',
-            'turn:global.relay.metered.ca:443?transport=tcp'
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turns:openrelay.metered.ca:443'
           ],
           username: 'openrelayproject',
           credential: 'openrelayproject'
@@ -92,12 +92,17 @@ export class WebRTCManager {
               this.candidateBuffer = [];
             }
             this.candidateTimer = null;
-          }, 100); // 100ms aggressive batch window for instant cross-device connection
+          }, 500); // 500ms batch window to allow mobile devices to gather relay candidates
         }
       }
     };
 
+    this.pc.onconnectionstatechange = () => {
+      console.log('[WebRTC] connectionState:', this.pc.connectionState);
+    };
+
     this.pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] iceConnectionState:', this.pc.iceConnectionState);
       if (this.pc.iceConnectionState === 'failed') {
         this.onConnectionStatusChange('error', 'Connection failed');
       }
@@ -107,6 +112,7 @@ export class WebRTCManager {
     };
 
     this.pc.onicegatheringstatechange = () => {
+      console.log('[WebRTC] iceGatheringState:', this.pc.iceGatheringState);
     };
 
     this.pc.ondatachannel = (event) => {
@@ -257,6 +263,17 @@ export class WebRTCManager {
         console.error('Error handling message:', error);
       }
     };
+  }
+
+  public flushIceCandidates() {
+    if (this.candidateTimer) {
+      clearTimeout(this.candidateTimer);
+      this.candidateTimer = null;
+    }
+    if (this.onIceCandidatesBatched && this.candidateBuffer.length > 0) {
+      this.onIceCandidatesBatched([...this.candidateBuffer]);
+      this.candidateBuffer = [];
+    }
   }
 
   private async processWriteQueue(fileId: string) {
@@ -643,7 +660,8 @@ export class SignalingManager {
       relayUrls: [
         'wss://nos.lol',
         'wss://relay.nostr.band',
-        'wss://relay.snort.social'
+        'wss://relay.damus.io',
+        'wss://nostr.mutinywallet.com'
       ]
     }, roomId);
     
@@ -695,12 +713,10 @@ export class SignalingManager {
           const { ciphertext, iv } = await encryptPayload(this.signalingKey, answerPayload);
           sdpAction.send({ encrypted: ciphertext, iv }, { target: peerId });
           
-          // Leave the tracker room after 8 seconds to allow trickle ICE to finish
-          setTimeout(() => this.leave(), 8000); 
+          this.scheduleLeave();
         } else if (data.type === 'answer' && isCreator) {
           await this.rtcManager.handleAnswer(data.sdp);
-          // Leave the tracker room after 8 seconds to allow trickle ICE to finish
-          setTimeout(() => this.leave(), 8000);
+          this.scheduleLeave();
         }
       } catch (e) {
         console.debug("[Signaling] Failed to decrypt SDP payload (invalid key or malformed)", e);
@@ -721,6 +737,30 @@ export class SignalingManager {
         }
       }
     };
+  }
+
+  private scheduleLeave() {
+    if (!this.room) return;
+    
+    // Flush any remaining candidates
+    this.rtcManager.flushIceCandidates();
+
+    if (this.rtcManager.pc.iceGatheringState === 'complete') {
+      setTimeout(() => this.leave(), 1000); // 1s grace period
+    } else {
+      const listener = () => {
+        if (this.rtcManager.pc.iceGatheringState === 'complete') {
+          this.rtcManager.pc.removeEventListener('icegatheringstatechange', listener);
+          setTimeout(() => this.leave(), 1000);
+        }
+      };
+      this.rtcManager.pc.addEventListener('icegatheringstatechange', listener);
+      // Failsafe 25 seconds for mobile networks
+      setTimeout(() => {
+        this.rtcManager.pc.removeEventListener('icegatheringstatechange', listener);
+        this.leave();
+      }, 25000);
+    }
   }
 
   public leave() {
